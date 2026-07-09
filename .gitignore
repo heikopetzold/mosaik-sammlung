@@ -1,0 +1,10 @@
+.claude/
+vendor/
+database.sql
+
+# Uploads (Nutzer-Bilder)
+public/uploads/*
+!public/uploads/.gitkeep
+
+# System
+.DS_Store

@@ -1,0 +1,17 @@
+name: mosaik-sammlung
+recipe: lamp
+config:
+  webroot: public
+  database: mysql:8.0
+  php: '8.2'
+  xdebug: false
+
+# Ermöglicht "lando composer" Befehle im Container
+services:
+  appserver:
+    build_as_root:
+      - apt-get update -y && apt-get install -y unzip
+  pma:
+    type: phpmyadmin
+    hosts:
+      - database
