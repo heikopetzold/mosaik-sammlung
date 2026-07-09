@@ -1,6 +1,5 @@
 .claude/
 vendor/
-database.sql
 
 # Uploads (Nutzer-Bilder)
 public/uploads/*
@@ -8,3 +7,4 @@ public/uploads/*
 
 # System
 .DS_Store
+/src/config/admin.sql
