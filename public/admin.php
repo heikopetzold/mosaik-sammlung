@@ -9,6 +9,9 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use App\Classes\MosaicRepository;
 use App\Enums\Month;
 use App\Enums\PublicationType;
+use App\Enums\Series;
+use App\Enums\Availability;
+use App\Enums\Condition;
 
 $repository = new MosaicRepository();
 $message = '';
@@ -18,6 +21,9 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create') {
     $title = $_POST['title'] ?? '';
     $type = PublicationType::tryFrom($_POST['type'] ?? '')?->value ?? PublicationType::Heft->value;
+    $series = Series::tryFrom($_POST['series'] ?? '')?->value ?? Series::Abrafaxe->value;
+    $availability = Availability::tryFrom($_POST['availability'] ?? '')?->value ?? Availability::Vorhanden->value;
+    $condition = Condition::tryFrom($_POST['item_condition'] ?? '')?->value ?? Condition::SehrGut->value;
     $issueNumber = $_POST['issue_number'] ?? '';
     $year = $_POST['release_year'] ?? '';
     $month = $_POST['release_month'] ?? '';
@@ -37,7 +43,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $success = $repository->save([
             'title' => $title,
             'type' => $type,
+            'series' => $series,
             'issue_number' => $issueNumber,
+            'availability' => $availability,
+            'item_condition' => $condition,
             'release_year' => $year,
             'release_month' => $month,
             'description' => $description,
@@ -65,6 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     } else {
         $title = $_POST['title'] ?? '';
         $type = PublicationType::tryFrom($_POST['type'] ?? '')?->value ?? PublicationType::Heft->value;
+        $series = Series::tryFrom($_POST['series'] ?? '')?->value ?? Series::Abrafaxe->value;
+        $availability = Availability::tryFrom($_POST['availability'] ?? '')?->value ?? Availability::Vorhanden->value;
+        $condition = Condition::tryFrom($_POST['item_condition'] ?? '')?->value ?? Condition::SehrGut->value;
         $issueNumber = $_POST['issue_number'] ?? '';
         $year = $_POST['release_year'] ?? '';
         $month = $_POST['release_month'] ?? '';
@@ -95,7 +107,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $success = $repository->update($id, [
                 'title' => $title,
                 'type' => $type,
+                'series' => $series,
                 'issue_number' => $issueNumber,
+                'availability' => $availability,
+                'item_condition' => $condition,
                 'release_year' => $year,
                 'release_month' => $month,
                 'description' => $description,
@@ -149,6 +164,9 @@ $isEdit = $editMosaic !== null;
 // Formularwerte (im Bearbeiten-Modus vorbelegt, sonst Standardwerte)
 $formTitle = $editMosaic['title'] ?? '';
 $formType = $editMosaic['type'] ?? PublicationType::Heft->value;
+$formSeries = $editMosaic['series'] ?? Series::Abrafaxe->value;
+$formAvailability = $editMosaic['availability'] ?? Availability::Vorhanden->value;
+$formCondition = $editMosaic['item_condition'] ?? Condition::SehrGut->value;
 $formIssue = $editMosaic['issue_number'] ?? '';
 $formYear = $editMosaic['release_year'] ?? date('Y');
 $formMonth = $editMosaic['release_month'] ?? null;
@@ -452,6 +470,23 @@ $mosaics = $repository->getAllSorted('DESC');
             font-weight: 500;
         }
 
+        .tag {
+            display: inline-block;
+            margin-top: 0.35rem;
+            padding: 0.1rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .tag-missing {
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
+
         .table-date {
             color: var(--text-secondary);
             font-size: 0.9rem;
@@ -517,9 +552,42 @@ $mosaics = $repository->getAllSorted('DESC');
                 </div>
 
                 <div class="form-group">
+                    <label for="series">Hauptserie *</label>
+                    <select id="series" name="series" required>
+                        <?php foreach (Series::cases() as $seriesCase): ?>
+                            <option value="<?= $seriesCase->value ?>" <?= $seriesCase->value === $formSeries ? 'selected' : '' ?>>
+                                <?= $seriesCase->label() ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group">
                     <label for="issue_number">Nummer</label>
                     <input type="number" id="issue_number" name="issue_number" min="1" step="1"
                         value="<?= htmlspecialchars((string) $formIssue) ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="availability">Verfügbarkeit *</label>
+                    <select id="availability" name="availability" required>
+                        <?php foreach (Availability::cases() as $availCase): ?>
+                            <option value="<?= $availCase->value ?>" <?= $availCase->value === $formAvailability ? 'selected' : '' ?>>
+                                <?= $availCase->label() ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="item_condition">Zustand *</label>
+                    <select id="item_condition" name="item_condition" required>
+                        <?php foreach (Condition::cases() as $condCase): ?>
+                            <option value="<?= $condCase->value ?>" <?= $condCase->value === $formCondition ? 'selected' : '' ?>>
+                                <?= $condCase->label() ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
 
                 <div class="form-group">
@@ -581,6 +649,7 @@ $mosaics = $repository->getAllSorted('DESC');
                             <th>Bild</th>
                             <th>Titel</th>
                             <th>Typ / Nr.</th>
+                            <th>Serie / Zustand</th>
                             <th>Datum</th>
                             <th>Aktionen</th>
                         </tr>
@@ -588,7 +657,7 @@ $mosaics = $repository->getAllSorted('DESC');
                     <tbody>
                         <?php if (empty($mosaics)): ?>
                             <tr>
-                                <td colspan="5" class="empty-table">Keine Mosaike vorhanden.</td>
+                                <td colspan="6" class="empty-table">Keine Mosaike vorhanden.</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($mosaics as $mosaic): ?>
@@ -597,6 +666,11 @@ $mosaics = $repository->getAllSorted('DESC');
                                 $monthLabel = $monthEnum ? $monthEnum->label() : $mosaic['release_month'];
                                 $typeEnum = PublicationType::tryFrom($mosaic['type'] ?? '');
                                 $typeLabel = $typeEnum ? $typeEnum->label() : ($mosaic['type'] ?? '');
+                                $seriesEnum = Series::tryFrom($mosaic['series'] ?? '');
+                                $seriesLabel = $seriesEnum ? $seriesEnum->label() : ($mosaic['series'] ?? '');
+                                $condEnum = Condition::tryFrom($mosaic['item_condition'] ?? '');
+                                $condLabel = $condEnum ? $condEnum->label() : ($mosaic['item_condition'] ?? '');
+                                $isMissing = ($mosaic['availability'] ?? '') === Availability::Fehlt->value;
                                 ?>
                                 <tr>
                                     <td>
@@ -606,12 +680,19 @@ $mosaics = $repository->getAllSorted('DESC');
                                     </td>
                                     <td>
                                         <div class="table-title"><?= htmlspecialchars($mosaic['title']) ?></div>
+                                        <?php if ($isMissing): ?>
+                                            <span class="tag tag-missing">Fehlt</span>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <div class="table-date">
                                             <?= htmlspecialchars($typeLabel) ?><?php if (!empty($mosaic['issue_number'])): ?>
                                                 Nr.&nbsp;<?= htmlspecialchars($mosaic['issue_number']) ?><?php endif; ?>
                                         </div>
+                                    </td>
+                                    <td>
+                                        <div class="table-date"><?= htmlspecialchars($seriesLabel) ?><br>
+                                            <?= htmlspecialchars($condLabel) ?></div>
                                     </td>
                                     <td>
                                         <div class="table-date"><?= htmlspecialchars($monthLabel) ?>

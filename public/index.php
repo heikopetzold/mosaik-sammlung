@@ -4,10 +4,25 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use App\Classes\MosaicRepository;
 use App\Enums\Month;
 use App\Enums\PublicationType;
+use App\Enums\Series;
+use App\Enums\Availability;
+use App\Enums\Condition;
 
 $repository = new MosaicRepository();
 $sort = $_GET['sort'] ?? 'ASC';
-$mosaics = $repository->getAllSorted($sort);
+
+// Filter aus der URL (leere/ungültige Werte werden ignoriert)
+$filterYear = isset($_GET['year']) && $_GET['year'] !== '' ? (int) $_GET['year'] : null;
+$filterSeries = Series::tryFrom($_GET['series'] ?? '')?->value;
+$filterCondition = Condition::tryFrom($_GET['condition'] ?? '')?->value;
+
+$mosaics = $repository->getFiltered([
+    'year' => $filterYear,
+    'series' => $filterSeries,
+    'condition' => $filterCondition,
+], $sort);
+
+$years = $repository->getDistinctYears();
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -144,6 +159,77 @@ $mosaics = $repository->getAllSorted($sort);
             color: var(--card-border);
         }
 
+        /* Filter Bar */
+        .filter-bar {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            backdrop-filter: blur(12px);
+            padding: 1.25rem 1.5rem;
+            border-radius: 16px;
+            margin-bottom: 2.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: flex-end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .filter-group label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .filter-group select {
+            background: #161b26;
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+            padding: 0.6rem 0.75rem;
+            border-radius: 8px;
+            font-family: var(--font-main);
+            font-size: 0.95rem;
+            outline: none;
+            min-width: 150px;
+        }
+
+        .filter-group select:focus {
+            border-color: var(--accent-color);
+        }
+
+        .filter-btn {
+            padding: 0.6rem 1.5rem;
+            border-radius: 8px;
+            font-family: var(--font-main);
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            background: var(--accent-gradient);
+            color: white;
+            transition: opacity 0.3s ease;
+        }
+
+        .filter-btn:hover {
+            opacity: 0.9;
+        }
+
+        .filter-reset {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            padding: 0.6rem 0.5rem;
+            align-self: center;
+        }
+
+        .filter-reset:hover {
+            color: var(--text-primary);
+        }
+
         /* Grid Layout */
         .grid {
             display: grid;
@@ -235,6 +321,28 @@ $mosaics = $repository->getAllSorted($sort);
             flex: 1;
         }
 
+        .card-condition {
+            margin-top: 1rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .card-badge-missing {
+            right: auto;
+            left: 1rem;
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+
+        .card-missing {
+            opacity: 0.75;
+        }
+
+        .card-missing:hover {
+            opacity: 1;
+        }
+
         .empty-state {
             grid-column: 1 / -1;
             text-align: center;
@@ -275,17 +383,78 @@ $mosaics = $repository->getAllSorted($sort);
     </header>
 
     <main>
+        <?php
+        // Aktive Filter für das Erhalten beim Umsortieren
+        $activeFilters = array_filter([
+            'year' => $filterYear,
+            'series' => $filterSeries,
+            'condition' => $filterCondition,
+        ], fn($v) => $v !== null && $v !== '');
+        $sortAscUrl = '?' . http_build_query(array_merge($activeFilters, ['sort' => 'ASC']));
+        $sortDescUrl = '?' . http_build_query(array_merge($activeFilters, ['sort' => 'DESC']));
+        $hasFilters = !empty($activeFilters);
+        ?>
         <div class="controls">
-            <a href="?sort=ASC" class="<?= $sort === 'ASC' ? 'active' : '' ?>">Älteste zuerst</a>
+            <a href="<?= $sortAscUrl ?>" class="<?= $sort === 'ASC' ? 'active' : '' ?>">Älteste zuerst</a>
             <span class="separator">|</span>
-            <a href="?sort=DESC" class="<?= $sort === 'DESC' ? 'active' : '' ?>">Neueste zuerst</a>
+            <a href="<?= $sortDescUrl ?>" class="<?= $sort === 'DESC' ? 'active' : '' ?>">Neueste zuerst</a>
         </div>
+
+        <form method="GET" class="filter-bar">
+            <input type="hidden" name="sort" value="<?= htmlspecialchars($sort) ?>">
+
+            <div class="filter-group">
+                <label for="filter-series">Hauptserie</label>
+                <select id="filter-series" name="series">
+                    <option value="">Alle</option>
+                    <?php foreach (Series::cases() as $seriesCase): ?>
+                        <option value="<?= $seriesCase->value ?>" <?= $filterSeries === $seriesCase->value ? 'selected' : '' ?>>
+                            <?= $seriesCase->label() ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-condition">Zustand</label>
+                <select id="filter-condition" name="condition">
+                    <option value="">Alle</option>
+                    <?php foreach (Condition::cases() as $condCase): ?>
+                        <option value="<?= $condCase->value ?>" <?= $filterCondition === $condCase->value ? 'selected' : '' ?>>
+                            <?= $condCase->label() ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-year">Jahr</label>
+                <select id="filter-year" name="year">
+                    <option value="">Alle</option>
+                    <?php foreach ($years as $year): ?>
+                        <option value="<?= $year ?>" <?= $filterYear === $year ? 'selected' : '' ?>>
+                            <?= $year ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <button type="submit" class="filter-btn">Filtern</button>
+            <?php if ($hasFilters): ?>
+                <a href="?sort=<?= htmlspecialchars($sort) ?>" class="filter-reset">Zurücksetzen</a>
+            <?php endif; ?>
+        </form>
 
         <div class="grid">
             <?php if (empty($mosaics)): ?>
                 <div class="empty-state">
-                    <h3>Keine Mosaike vorhanden</h3>
-                    <p>Es wurden noch keine Mosaike in die Sammlung eingetragen.</p>
+                    <?php if ($hasFilters): ?>
+                        <h3>Keine Treffer</h3>
+                        <p>Für die gewählten Filter wurden keine Mosaike gefunden.</p>
+                    <?php else: ?>
+                        <h3>Keine Mosaike vorhanden</h3>
+                        <p>Es wurden noch keine Mosaike in die Sammlung eingetragen.</p>
+                    <?php endif; ?>
                 </div>
             <?php else: ?>
                 <?php foreach ($mosaics as $mosaik):
@@ -293,9 +462,18 @@ $mosaics = $repository->getAllSorted($sort);
                     $monthLabel = $monthEnum ? $monthEnum->label() : $mosaik['release_month'];
                     $typeEnum = PublicationType::tryFrom($mosaik['type'] ?? '');
                     $typeLabel = $typeEnum ? $typeEnum->label() : ($mosaik['type'] ?? '');
-                    $subtitle = trim($typeLabel . (!empty($mosaik['issue_number']) ? ' Nr. ' . $mosaik['issue_number'] : ''));
+                    $seriesEnum = Series::tryFrom($mosaik['series'] ?? '');
+                    $seriesLabel = $seriesEnum ? $seriesEnum->label() : ($mosaik['series'] ?? '');
+                    $condEnum = Condition::tryFrom($mosaik['item_condition'] ?? '');
+                    $condLabel = $condEnum ? $condEnum->label() : ($mosaik['item_condition'] ?? '');
+                    $isMissing = ($mosaik['availability'] ?? '') === Availability::Fehlt->value;
+                    $subtitleParts = array_filter([
+                        $seriesLabel,
+                        trim($typeLabel . (!empty($mosaik['issue_number']) ? ' Nr. ' . $mosaik['issue_number'] : '')),
+                    ]);
+                    $subtitle = implode(' · ', $subtitleParts);
                     ?>
-                    <article class="card">
+                    <article class="card<?= $isMissing ? ' card-missing' : '' ?>">
                         <div class="card-image-wrapper">
                             <?php if (!empty($mosaik['image_path'])): ?>
                                 <img src="<?= htmlspecialchars($mosaik['image_path']) ?>" alt="Mosaik Cover" class="card-image"
@@ -303,6 +481,9 @@ $mosaics = $repository->getAllSorted($sort);
                             <?php endif; ?>
                             <span class="card-badge"><?= htmlspecialchars($monthLabel) ?>
                                 <?= htmlspecialchars($mosaik['release_year']) ?></span>
+                            <?php if ($isMissing): ?>
+                                <span class="card-badge card-badge-missing">Fehlt</span>
+                            <?php endif; ?>
                         </div>
                         <div class="card-content">
                             <?php if ($subtitle !== ''): ?>
@@ -310,6 +491,7 @@ $mosaics = $repository->getAllSorted($sort);
                             <?php endif; ?>
                             <h2 class="card-title"><?= htmlspecialchars($mosaik['title']) ?></h2>
                             <p class="card-description"><?= nl2br(htmlspecialchars($mosaik['description'] ?? '')) ?></p>
+                            <span class="card-condition">Zustand: <?= htmlspecialchars($condLabel) ?></span>
                         </div>
                     </article>
                 <?php endforeach; ?>
