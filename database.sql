@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS `mosaics` (
   `release_year` INT NOT NULL,
   `release_month` INT NOT NULL,
   `description` TEXT NULL,
-  `image_path` VARCHAR(255) NOT NULL,
-  INDEX (`release_year`)
+  `image_path` VARCHAR(255) NULL,
+  `image_path_current_condition` VARCHAR(255) NULL,
+  INDEX (`release_year`),
+  INDEX (`series`),
+  INDEX (`item_condition`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

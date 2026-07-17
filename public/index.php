@@ -370,6 +370,125 @@ $years = $repository->getDistinctYears();
             border-top: 1px solid var(--card-border);
             margin-top: auto;
         }
+
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(11, 15, 25, 0.85);
+            backdrop-filter: blur(12px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            padding: 1.5rem;
+        }
+
+        .modal.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-content {
+            background: #111827;
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            transform: scale(0.95);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            padding: 2.5rem;
+        }
+
+        .modal.active .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 1.25rem;
+            right: 1.25rem;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 1.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: #ef4444;
+            border-color: #ef4444;
+            color: white;
+        }
+
+        .modal-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1.8fr;
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .modal-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .modal-image-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .modal-img-wrapper {
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--card-border);
+            background: #161b26;
+        }
+
+        .modal-img-wrapper img {
+            width: 100%;
+            height: auto;
+            display: block;
+            object-fit: cover;
+        }
+
+        .modal-description {
+            font-size: 1.05rem;
+            color: var(--text-primary);
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+
+        .modal-section-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 0.25rem;
+        }
     </style>
 </head>
 
@@ -473,7 +592,12 @@ $years = $repository->getDistinctYears();
                     ]);
                     $subtitle = implode(' · ', $subtitleParts);
                     ?>
-                    <article class="card<?= $isMissing ? ' card-missing' : '' ?>">
+                    <article class="card<?= $isMissing ? ' card-missing' : '' ?>"
+                             style="cursor: pointer;"
+                             data-title="<?= htmlspecialchars($mosaik['title']) ?>"
+                             data-description="<?= htmlspecialchars($mosaik['description'] ?? '') ?>"
+                             data-image="<?= htmlspecialchars($mosaik['image_path'] ?? '') ?>"
+                             data-condition-image="<?= htmlspecialchars($mosaik['image_path_current_condition'] ?? '') ?>">
                         <div class="card-image-wrapper">
                             <?php if (!empty($mosaik['image_path'])): ?>
                                 <img src="<?= htmlspecialchars($mosaik['image_path']) ?>" alt="Mosaik Cover" class="card-image"
@@ -499,9 +623,95 @@ $years = $repository->getDistinctYears();
         </div>
     </main>
 
+    <!-- Detail Modal -->
+    <div class="modal" id="detail-modal">
+        <div class="modal-content">
+            <button class="modal-close" id="modal-close">&times;</button>
+            <h2 id="m-title" style="font-size: 1.75rem; margin-bottom: 1rem; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Titel</h2>
+            <div class="modal-grid">
+                <!-- Images Column -->
+                <div class="modal-image-col">
+                    <div class="modal-section-title">Cover (Gesamtbild)</div>
+                    <div class="modal-img-wrapper" id="m-cover-wrapper">
+                        <img src="" alt="Cover" id="m-cover-img">
+                    </div>
+                    
+                    <div id="m-cond-section" style="display: none;">
+                        <div class="modal-section-title" style="margin-top: 1rem;">Aktueller Zustand</div>
+                        <div class="modal-img-wrapper">
+                            <img src="" alt="Zustand" id="m-cond-img">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Description Column -->
+                <div>
+                    <div class="modal-section-title">Beschreibung</div>
+                    <div class="modal-description" id="m-description">Beschreibung...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <footer>
         <p>&copy; <?= date('Y') ?> Mosaik-Sammlung. Alle Rechte vorbehalten.</p>
     </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const modal = document.getElementById('detail-modal');
+            const modalClose = document.getElementById('modal-close');
+            const cards = document.querySelectorAll('.card');
+
+            cards.forEach(card => {
+                card.addEventListener('click', () => {
+                    const title = card.getAttribute('data-title');
+                    const description = card.getAttribute('data-description') || 'Keine Beschreibung vorhanden.';
+                    const image = card.getAttribute('data-image');
+                    const condImage = card.getAttribute('data-condition-image');
+
+                    document.getElementById('m-title').textContent = title;
+                    document.getElementById('m-description').textContent = description;
+
+                    const coverWrapper = document.getElementById('m-cover-wrapper');
+                    const coverImg = document.getElementById('m-cover-img');
+                    if (image) {
+                        coverImg.src = image;
+                        coverWrapper.style.display = 'block';
+                    } else {
+                        coverImg.src = '';
+                        coverWrapper.style.display = 'none';
+                    }
+
+                    const condSection = document.getElementById('m-cond-section');
+                    const condImg = document.getElementById('m-cond-img');
+                    if (condImage) {
+                        condImg.src = condImage;
+                        condSection.style.display = 'block';
+                    } else {
+                        condImg.src = '';
+                        condSection.style.display = 'none';
+                    }
+
+                    modal.classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                });
+            });
+
+            const closeModal = () => {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            };
+
+            modalClose.addEventListener('click', closeModal);
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeModal();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
+            });
+        });
+    </script>
 </body>
 
 </html>

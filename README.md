@@ -1,13 +1,20 @@
 Prompt
 Mache mir einen Plan für eine Webseite. Diese soll meine Mosaiksammlung abbilden.
-Ich möchte mit lando starten, bauen und stoppen können. Es soll über einen docker container lauffähig sein. Weiterhin möchte ich auch composer nutzen können. Die architektur soll php sein, mit facaden, klassen, enums und interfaces. Die datenhaltung soll über eine db erfolgen. Lege mir für die Credentials (DB, Benutzername, Passwort) eine .env an und stelle sicher, dass diese ausgelesen wird.
 
+Environment:
+Ich möchte mit lando starten, bauen und stoppen können. 
+Es soll über einen docker container lauffähig sein. 
+Weiterhin möchte ich auch composer nutzen können. 
+Die Architektur soll php sein, mit Facaden, Klassen, Enums und Interfaces. 
+Die Datenhaltung soll über eine DB erfolgen. 
+Lege mir für alle relevanten die Credentials (z.B.: DB, Benutzername, Passwort) eine .env an und stelle sicher, dass diese ausgelesen wird.
 Dabei gibt es zwei Hauptserien
-Frontend.
+
+Frontend:
 Angezeigt wird der Titel, Erscheinungsjahr, Serie, Typ, Nummer, Erscheinungsmonat und bild. Das Bild soll als Gesamtbild gerrendert sein. Ich möchte Filtern nach Hauptserie, Zustand und Jahr.
 Beim Klick auf das Bild soll u.a. auch das Bild, das Zustandsbild und die Beschreibung angezeigt werden
 
-Adminseite
+Adminseite:
 Es soll eine Adminseite geben, in die ich diese Werte eintragen kann.
 Die Adminseite soll passwortgeschützt sein.
 Ich möchte einen Datensatz anlegen, updaten und löschen können. Ich möchte auch einen Filter nach den Hauptserien haben
@@ -24,6 +31,7 @@ Das Formular soll folgende Felder enthalten:
 -Bildupload aktueller Zustand
 -Beschreibung
 Die Tatenbankfelder sollen dementsprechend id, title, type,series, issue_number, availability, item_condition, release_year, release_month, description, image_path, image_path_current_condition.
+Relevante Felder sollen auch über einen Index verfügen.
 Die Admincredentials sollen sein:
 Benutzer: admin
 Pwd: admin123

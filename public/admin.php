@@ -21,7 +21,7 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create') {
     $title = $_POST['title'] ?? '';
     $type = PublicationType::tryFrom($_POST['type'] ?? '')?->value ?? PublicationType::Heft->value;
-    $series = Series::tryFrom($_POST['series'] ?? '')?->value ?? Series::Abrafaxe->value;
+    $series = Series::tryFrom($_POST['series'] ?? '')?->value ?? Series::Digedags->value;
     $availability = Availability::tryFrom($_POST['availability'] ?? '')?->value ?? Availability::Vorhanden->value;
     $condition = Condition::tryFrom($_POST['item_condition'] ?? '')?->value ?? Condition::SehrGut->value;
     $issueNumber = $_POST['issue_number'] ?? '';
@@ -35,11 +35,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         mkdir($targetDir, 0777, true);
     }
 
-    $fileName = time() . '_' . basename($_FILES["image"]["name"]);
-    $targetFilePath = $targetDir . $fileName;
-    $dbImagePath = 'uploads/' . $fileName;
+    $dbImagePath = null;
+    $uploadSuccess = true;
 
-    if (move_uploaded_file($_FILES["image"]["tmp_name"], $targetFilePath)) {
+    // Main cover image upload
+    if (!empty($_FILES["image"]["name"]) && $_FILES["image"]["error"] === UPLOAD_ERR_OK) {
+        $fileName = time() . '_' . basename($_FILES["image"]["name"]);
+        $targetFilePath = $targetDir . $fileName;
+        if (move_uploaded_file($_FILES["image"]["tmp_name"], $targetFilePath)) {
+            $dbImagePath = 'uploads/' . $fileName;
+        } else {
+            $uploadSuccess = false;
+            $error = "Fehler beim Bildupload.";
+        }
+    }
+
+    // Condition image upload
+    $dbImagePathCondition = null;
+    if ($uploadSuccess && !empty($_FILES["image_condition"]["name"]) && $_FILES["image_condition"]["error"] === UPLOAD_ERR_OK) {
+        $fileNameCondition = time() . '_cond_' . basename($_FILES["image_condition"]["name"]);
+        $targetFilePathCondition = $targetDir . $fileNameCondition;
+        if (move_uploaded_file($_FILES["image_condition"]["tmp_name"], $targetFilePathCondition)) {
+            $dbImagePathCondition = 'uploads/' . $fileNameCondition;
+        } else {
+            $uploadSuccess = false;
+            $error = "Fehler beim Zustand-Bildupload.";
+            // cleanup first uploaded file if any
+            if ($dbImagePath) {
+                @unlink($targetDir . basename($dbImagePath));
+            }
+        }
+    }
+
+    if ($uploadSuccess) {
         $success = $repository->save([
             'title' => $title,
             'type' => $type,
@@ -50,17 +78,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'release_year' => $year,
             'release_month' => $month,
             'description' => $description,
-            'image_path' => $dbImagePath
+            'image_path' => $dbImagePath,
+            'image_path_current_condition' => $dbImagePathCondition
         ]);
 
         if ($success) {
             $message = "Mosaik erfolgreich hinzugefügt!";
         } else {
             $error = "Fehler beim Speichern in der Datenbank.";
-            @unlink($targetFilePath);
+            if ($dbImagePath) @unlink($targetDir . basename($dbImagePath));
+            if ($dbImagePathCondition) @unlink($targetDir . basename($dbImagePathCondition));
         }
-    } else {
-        $error = "Fehler beim Bildupload.";
     }
 }
 
@@ -74,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     } else {
         $title = $_POST['title'] ?? '';
         $type = PublicationType::tryFrom($_POST['type'] ?? '')?->value ?? PublicationType::Heft->value;
-        $series = Series::tryFrom($_POST['series'] ?? '')?->value ?? Series::Abrafaxe->value;
+        $series = Series::tryFrom($_POST['series'] ?? '')?->value ?? Series::Digedags->value;
         $availability = Availability::tryFrom($_POST['availability'] ?? '')?->value ?? Availability::Vorhanden->value;
         $condition = Condition::tryFrom($_POST['item_condition'] ?? '')?->value ?? Condition::SehrGut->value;
         $issueNumber = $_POST['issue_number'] ?? '';
@@ -82,10 +110,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $month = $_POST['release_month'] ?? '';
         $description = $_POST['description'] ?? '';
 
-        // Bild nur ersetzen, wenn ein neues hochgeladen wurde – sonst bestehendes behalten
         $dbImagePath = $existing['image_path'];
         $oldImagePath = null;
+        $uploadSuccess = true;
 
+        // Update cover image
         if (!empty($_FILES['image']['name']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
             $targetDir = __DIR__ . '/uploads/';
             if (!is_dir($targetDir)) {
@@ -99,11 +128,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $oldImagePath = $existing['image_path'];
                 $dbImagePath = 'uploads/' . $fileName;
             } else {
+                $uploadSuccess = false;
                 $error = "Fehler beim Bildupload.";
             }
         }
 
-        if (empty($error)) {
+        // Update condition image
+        $dbImagePathCondition = $existing['image_path_current_condition'] ?? null;
+        $oldImagePathCondition = null;
+
+        if ($uploadSuccess && !empty($_FILES['image_condition']['name']) && $_FILES['image_condition']['error'] === UPLOAD_ERR_OK) {
+            $targetDir = __DIR__ . '/uploads/';
+            if (!is_dir($targetDir)) {
+                mkdir($targetDir, 0777, true);
+            }
+
+            $fileNameCondition = time() . '_cond_' . basename($_FILES["image_condition"]["name"]);
+            $targetFilePathCondition = $targetDir . $fileNameCondition;
+
+            if (move_uploaded_file($_FILES["image_condition"]["tmp_name"], $targetFilePathCondition)) {
+                $oldImagePathCondition = $existing['image_path_current_condition'] ?? null;
+                $dbImagePathCondition = 'uploads/' . $fileNameCondition;
+            } else {
+                $uploadSuccess = false;
+                $error = "Fehler beim Zustand-Bildupload.";
+                // cleanup new main image if we uploaded it in this request
+                if ($oldImagePath !== null && $dbImagePath !== $existing['image_path']) {
+                    @unlink($targetDir . basename($dbImagePath));
+                }
+            }
+        }
+
+        if ($uploadSuccess && empty($error)) {
             $success = $repository->update($id, [
                 'title' => $title,
                 'type' => $type,
@@ -114,15 +170,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 'release_year' => $year,
                 'release_month' => $month,
                 'description' => $description,
-                'image_path' => $dbImagePath
+                'image_path' => $dbImagePath,
+                'image_path_current_condition' => $dbImagePathCondition
             ]);
 
             if ($success) {
-                // Altes Bild erst nach erfolgreichem Update entfernen
+                // Remove old cover image after successful update
                 if ($oldImagePath) {
                     $oldFullPath = __DIR__ . '/' . $oldImagePath;
                     if (file_exists($oldFullPath)) {
                         @unlink($oldFullPath);
+                    }
+                }
+                // Remove old condition image
+                if ($oldImagePathCondition) {
+                    $oldCondFullPath = __DIR__ . '/' . $oldImagePathCondition;
+                    if (file_exists($oldCondFullPath)) {
+                        @unlink($oldCondFullPath);
                     }
                 }
                 $message = "Mosaik erfolgreich aktualisiert!";
@@ -140,9 +204,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $mosaic = $repository->find($id);
         if ($mosaic) {
             // Delete image file
-            $imageFullPath = __DIR__ . '/' . $mosaic['image_path'];
-            if (file_exists($imageFullPath)) {
-                @unlink($imageFullPath);
+            if (!empty($mosaic['image_path'])) {
+                $imageFullPath = __DIR__ . '/' . $mosaic['image_path'];
+                if (file_exists($imageFullPath)) {
+                    @unlink($imageFullPath);
+                }
+            }
+            // Delete condition image file
+            if (!empty($mosaic['image_path_current_condition'])) {
+                $condFullPath = __DIR__ . '/' . $mosaic['image_path_current_condition'];
+                if (file_exists($condFullPath)) {
+                    @unlink($condFullPath);
+                }
             }
 
             if ($repository->delete($id)) {
@@ -164,7 +237,7 @@ $isEdit = $editMosaic !== null;
 // Formularwerte (im Bearbeiten-Modus vorbelegt, sonst Standardwerte)
 $formTitle = $editMosaic['title'] ?? '';
 $formType = $editMosaic['type'] ?? PublicationType::Heft->value;
-$formSeries = $editMosaic['series'] ?? Series::Abrafaxe->value;
+$formSeries = $editMosaic['series'] ?? Series::Digedags->value;
 $formAvailability = $editMosaic['availability'] ?? Availability::Vorhanden->value;
 $formCondition = $editMosaic['item_condition'] ?? Condition::SehrGut->value;
 $formIssue = $editMosaic['issue_number'] ?? '';
@@ -172,7 +245,11 @@ $formYear = $editMosaic['release_year'] ?? date('Y');
 $formMonth = $editMosaic['release_month'] ?? null;
 $formDescription = $editMosaic['description'] ?? '';
 
-$mosaics = $repository->getAllSorted('DESC');
+// Handle series filtering on admin dashboard
+$filterSeries = Series::tryFrom($_GET['series'] ?? '')?->value;
+$mosaics = $repository->getFiltered([
+    'series' => $filterSeries
+], 'DESC');
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -608,7 +685,7 @@ $mosaics = $repository->getAllSorted('DESC');
                 </div>
 
                 <div class="form-group">
-                    <label>Bild <?= $isEdit ? '(leer lassen, um das aktuelle Bild zu behalten)' : 'auswählen *' ?></label>
+                    <label>Bild (Gesamtbild) <?= $isEdit ? '(leer lassen, um das aktuelle Bild zu behalten)' : 'auswählen *' ?></label>
                     <?php if ($isEdit && !empty($editMosaic['image_path'])): ?>
                         <img src="<?= htmlspecialchars($editMosaic['image_path']) ?>" alt="Aktuelles Bild"
                             style="width: 100%; max-height: 160px; object-fit: cover; border-radius: 8px; margin-bottom: 0.75rem;">
@@ -623,6 +700,24 @@ $mosaics = $repository->getAllSorted('DESC');
                         <span id="upload-text"><?= $isEdit ? 'Neues Bild auswählen' : 'Bild auswählen' ?></span>
                     </label>
                     <input type="file" id="image" name="image" accept="image/*" <?= $isEdit ? '' : 'required' ?>>
+                </div>
+
+                <div class="form-group">
+                    <label>Bild aktueller Zustand <?= $isEdit ? '(leer lassen, um das aktuelle Zustand-Bild zu behalten)' : 'auswählen' ?></label>
+                    <?php if ($isEdit && !empty($editMosaic['image_path_current_condition'])): ?>
+                        <img src="<?= htmlspecialchars($editMosaic['image_path_current_condition']) ?>" alt="Aktuelles Zustand-Bild"
+                            style="width: 100%; max-height: 160px; object-fit: cover; border-radius: 8px; margin-bottom: 0.75rem;">
+                    <?php endif; ?>
+                    <label for="image_condition" class="file-upload-btn" id="upload-label-condition">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        <span id="upload-text-condition"><?= $isEdit && !empty($editMosaic['image_path_current_condition']) ? 'Neues Zustand-Bild auswählen' : 'Zustand-Bild auswählen' ?></span>
+                    </label>
+                    <input type="file" id="image_condition" name="image_condition" accept="image/*">
                 </div>
 
                 <div class="form-group">
@@ -642,6 +737,24 @@ $mosaics = $repository->getAllSorted('DESC');
         <!-- Mosaics List -->
         <section class="list-panel">
             <h2>Bestehende Mosaike</h2>
+
+            <form method="GET" style="margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+                    <label for="filter-series" style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Nach Hauptserie filtern</label>
+                    <select id="filter-series" name="series" onchange="this.form.submit()" style="width: 100%; background: #161b26; border: 1px solid var(--card-border); color: var(--text-primary); padding: 0.75rem 1rem; border-radius: 8px; font-family: var(--font-main); font-size: 1rem; outline: none;">
+                        <option value="">Alle</option>
+                        <?php foreach (Series::cases() as $seriesCase): ?>
+                            <option value="<?= $seriesCase->value ?>" <?= $filterSeries === $seriesCase->value ? 'selected' : '' ?>>
+                                <?= $seriesCase->label() ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php if ($filterSeries): ?>
+                    <a href="admin.php" class="btn btn-secondary" style="padding: 0.75rem 1.5rem;">Filter zurücksetzen</a>
+                <?php endif; ?>
+            </form>
+
             <div class="table-wrapper">
                 <table>
                     <thead>
@@ -737,6 +850,25 @@ $mosaics = $repository->getAllSorted('DESC');
                 uploadLabel.style.color = 'var(--text-secondary)';
             }
         });
+
+        // Condition image preview file select listener
+        const fileInputCond = document.getElementById('image_condition');
+        const uploadTextCond = document.getElementById('upload-text-condition');
+        const uploadLabelCond = document.getElementById('upload-label-condition');
+
+        if (fileInputCond) {
+            fileInputCond.addEventListener('change', function (e) {
+                if (e.target.files && e.target.files.length > 0) {
+                    uploadTextCond.textContent = e.target.files[0].name;
+                    uploadLabelCond.style.borderColor = 'var(--accent-color)';
+                    uploadLabelCond.style.color = 'var(--text-primary)';
+                } else {
+                    uploadTextCond.textContent = 'Zustand-Bild auswählen';
+                    uploadLabelCond.style.borderColor = 'var(--card-border)';
+                    uploadLabelCond.style.color = 'var(--text-secondary)';
+                }
+            });
+        }
     </script>
 </body>
 

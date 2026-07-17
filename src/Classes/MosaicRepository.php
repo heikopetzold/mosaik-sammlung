@@ -56,8 +56,8 @@ class MosaicRepository implements MosaicRepositoryInterface
 
     public function save(array $data): bool
     {
-        $sql = "INSERT INTO mosaics (title, type, series, issue_number, availability, item_condition, release_year, release_month, description, image_path)
-                VALUES (:title, :type, :series, :issue_number, :availability, :item_condition, :release_year, :release_month, :description, :image_path)";
+        $sql = "INSERT INTO mosaics (title, type, series, issue_number, availability, item_condition, release_year, release_month, description, image_path, image_path_current_condition)
+                VALUES (:title, :type, :series, :issue_number, :availability, :item_condition, :release_year, :release_month, :description, :image_path, :image_path_current_condition)";
 
         $stmt = DB::query($sql, [
             'title' => $data['title'],
@@ -69,7 +69,8 @@ class MosaicRepository implements MosaicRepositoryInterface
             'release_year' => (int) $data['release_year'],
             'release_month' => (int) $data['release_month'],
             'description' => $data['description'] ?? null,
-            'image_path' => $data['image_path']
+            'image_path' => $data['image_path'] ?? null,
+            'image_path_current_condition' => $data['image_path_current_condition'] ?? null
         ]);
 
         return $stmt ? true : false;
@@ -87,7 +88,8 @@ class MosaicRepository implements MosaicRepositoryInterface
                     release_year = :release_year,
                     release_month = :release_month,
                     description = :description,
-                    image_path = :image_path
+                    image_path = :image_path,
+                    image_path_current_condition = :image_path_current_condition
                 WHERE id = :id";
 
         $stmt = DB::query($sql, [
@@ -100,7 +102,8 @@ class MosaicRepository implements MosaicRepositoryInterface
             'release_year' => (int) $data['release_year'],
             'release_month' => (int) $data['release_month'],
             'description' => $data['description'] ?? null,
-            'image_path' => $data['image_path'],
+            'image_path' => $data['image_path'] ?? null,
+            'image_path_current_condition' => $data['image_path_current_condition'] ?? null,
             'id' => $id
         ]);
 
