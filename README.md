@@ -1,40 +1,109 @@
 Prompt
 Mache mir einen Plan für eine Webseite. Diese soll meine Mosaiksammlung abbilden.
 
+Vergleiche mit dem aktuellen projekt und zeige mir die benötigten änderungen
+
 Environment:
 Ich möchte mit lando starten, bauen und stoppen können. 
 Es soll über einen docker container lauffähig sein. 
+Die URL soll [http](https://mosaik-sammlung.de) sein. 
 Weiterhin möchte ich auch composer nutzen können. 
 Die Architektur soll php sein, mit Facaden, Klassen, Enums und Interfaces. 
 Die Datenhaltung soll über eine DB erfolgen. 
 Lege mir für alle relevanten die Credentials (z.B.: DB, Benutzername, Passwort) eine .env an und stelle sicher, dass diese ausgelesen wird.
 Dabei gibt es zwei Hauptserien
 
-Frontend:
-Angezeigt wird der Titel, Erscheinungsjahr, Serie, Typ, Nummer, Erscheinungsmonat und bild. Das Bild soll als Gesamtbild gerrendert sein. Ich möchte Filtern nach Hauptserie, Zustand und Jahr.
-Beim Klick auf das Bild soll u.a. auch das Bild, das Zustandsbild und die Beschreibung angezeigt werden
-
 Adminseite:
 Es soll eine Adminseite geben, in die ich diese Werte eintragen kann.
 Die Adminseite soll passwortgeschützt sein.
-Ich möchte einen Datensatz anlegen, updaten und löschen können. Ich möchte auch einen Filter nach den Hauptserien haben
+Ich möchte einen Datensatz anlegen, updaten und löschen können. Ich möchte auch einen Filter nach den Hauptserien und Erscheinungsjahr haben.
+Der Filter soll beim updaten nicht zurückgesetzt werden.
 Das Formular soll folgende Felder enthalten:
--Titel,
--Typ (Heft, Buch). Default ist Heft.
--Hauptserie (Abrafaxe, Digedags). Default ist Digedags.
--Nummer
--Verfügbarkeit (Vorhanden, Fehlt). Default ist Vorhanden.
--Zustand (Sehr gut, Fehlerhaft, Genäht). Default ist Sehr gut
--Erscheinungsjahr
--Erscheinungsmonat
--Bildupload
--Bildupload aktueller Zustand
--Beschreibung
-Die Tatenbankfelder sollen dementsprechend id, title, type,series, issue_number, availability, item_condition, release_year, release_month, description, image_path, image_path_current_condition.
+-[id]                           [int]           [Id]
+-[uuid]                         [varchar(255)]  [Uuid]
+-[type]                         [varchar(255)]  [Typ] (Heft, Buch). Default ist Heft.
+-[category]                     [varchar(255)]  [Kategorie] (Abrafaxe, Digedags). Default ist Abrafaxe.
+-[title]                        [varchar(255)]  [Titel]
+-[issue_number]                 [int]           [Nummer]
+-[main_serie]                   [varchar(255)]  [Hauptserie]
+-[serie]                        [varchar(255)]  [Serie]
+-[availability]                 [varchar(255)]  [Verfügbarkeit] (Vorhanden, Fehlt). Default ist Vorhanden.
+-[item_condition]               [varchar(255)]  [Zustand] (Sehr gut, Fehlerhaft, Genäht). Default ist Sehr gut
+-[release_year]                 [int]           [Erscheinungsjahr]
+-[release_month]                [int]           [Erscheinungsmonat]
+-[description]                  [text]          [Beschreibung]
+-[image_path]                   [varchar(255)]  [Bildupload]
+-[image_path_current_condition] [varchar(255)]  [Bildupload aktueller Zustand]
+-[created_at]                   [timestamp]     [Created Date]
+-[updated_at]                   [timestamp]     [Updated Date]
+Im ersten Klammerpaar ist der Name des Datenbankfeldes. Im zweiten, der angenommene Datentyp. Im dritten stehen die Titel zum Anzeigen. Dahinter kommen evtl. noch die default Auswahl.
+Die uuid soll automatisch erstellt werden.
 Relevante Felder sollen auch über einen Index verfügen.
 Die Admincredentials sollen sein:
 Benutzer: admin
 Pwd: admin123
+
+
+
+
+
+
+
+Frontend:
+Es sollen 6 zufällige Medien angezeigt werden und erst über den Filter eine Auswahl, wie z.B. des Jahres erfolgen. 
+Angezeigt wird der
+Kategorie,
+Titel,
+Typ,
+Erscheinungsjahr/Erscheinungsmonat, 
+Nummer und Bild. 
+Das Bild soll als Gesamtbild gerrendert sein. Ich möchte Filtern nach Kategorie, Zustand und Jahr.
+Beim Klick auf das Bild soll 
+-Kategorie,
+-Typ,
+-Titel,
+-Nummer,
+-Hauptserie,
+-Serie,
+-Verfügbarkeit,
+-Zustand,
+-Erscheinungsjahr/Erscheinungsmonat,
+-Bild, 
+-Zustandsbild,
+-Beschreibung,
+angezeigt werden.
+Nicht vorhandene Medien sollen über einen roten Rahmen verfügen.
+
+## Lokales Setup (Lando)
+
+### Start / Stop
+
+```bash
+lando start
+lando stop
+```
+
+### Datenbank initialisieren
+
+Frische DB (Schema + Admin-User):
+
+```bash
+lando mysql lamp < database.sql
+```
+
+Wenn du bereits eine alte DB im Lando-Container hast (Schema v1), migriere sie:
+
+```bash
+lando mysql lamp < migrations/001_mosaics_v2.sql
+```
+
+### Admin Login
+
+- Benutzer: `admin`
+- Passwort: `admin123`
+
+
+
 
 #############################################
 

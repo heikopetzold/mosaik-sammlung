@@ -1,6 +1,9 @@
 .claude/
 vendor/
 
+# Environment (Credentials)
+.env
+
 # Uploads (Nutzer-Bilder)
 public/uploads/*
 !public/uploads/.gitkeep

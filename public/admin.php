@@ -9,7 +9,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use App\Classes\MosaicRepository;
 use App\Enums\Month;
 use App\Enums\PublicationType;
-use App\Enums\Series;
+use App\Enums\Category;
 use App\Enums\Availability;
 use App\Enums\Condition;
 
@@ -17,14 +17,41 @@ $repository = new MosaicRepository();
 $message = '';
 $error = '';
 
+// Flash messages (PRG after POST)
+if (!empty($_SESSION['flash_message'])) {
+    $message = (string) $_SESSION['flash_message'];
+    unset($_SESSION['flash_message']);
+}
+if (!empty($_SESSION['flash_error'])) {
+    $error = (string) $_SESSION['flash_error'];
+    unset($_SESSION['flash_error']);
+}
+
+// List filters (persist across POST/redirect)
+$filterCategory = Category::tryFrom($_GET['category'] ?? '')?->value;
+$filterYear = isset($_GET['year']) && $_GET['year'] !== '' ? (int) $_GET['year'] : null;
+
+// If the request is POST we might keep the list filters via hidden inputs
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $filterCategory = $filterCategory ?? Category::tryFrom($_POST['list_category'] ?? '')?->value;
+    $filterYear = $filterYear ?? (isset($_POST['list_year']) && $_POST['list_year'] !== '' ? (int) $_POST['list_year'] : null);
+}
+
+$listQuery = array_filter([
+    'category' => $filterCategory,
+    'year' => $filterYear,
+], static fn($v) => $v !== null && $v !== '');
+
 // Handle Form Submission (Create Mosaic)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'create') {
     $title = $_POST['title'] ?? '';
     $type = PublicationType::tryFrom($_POST['type'] ?? '')?->value ?? PublicationType::Heft->value;
-    $series = Series::tryFrom($_POST['series'] ?? '')?->value ?? Series::Digedags->value;
+    $category = Category::tryFrom($_POST['category'] ?? '')?->value ?? Category::Abrafaxe->value;
     $availability = Availability::tryFrom($_POST['availability'] ?? '')?->value ?? Availability::Vorhanden->value;
     $condition = Condition::tryFrom($_POST['item_condition'] ?? '')?->value ?? Condition::SehrGut->value;
     $issueNumber = $_POST['issue_number'] ?? '';
+    $mainSerie = trim((string)($_POST['main_serie'] ?? ''));
+    $serie = trim((string)($_POST['serie'] ?? ''));
     $year = $_POST['release_year'] ?? '';
     $month = $_POST['release_month'] ?? '';
     $description = $_POST['description'] ?? '';
@@ -71,8 +98,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $success = $repository->save([
             'title' => $title,
             'type' => $type,
-            'series' => $series,
+            'category' => $category,
             'issue_number' => $issueNumber,
+            'main_serie' => $mainSerie !== '' ? $mainSerie : null,
+            'serie' => $serie !== '' ? $serie : null,
             'availability' => $availability,
             'item_condition' => $condition,
             'release_year' => $year,
@@ -83,7 +112,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         ]);
 
         if ($success) {
-            $message = "Mosaik erfolgreich hinzugefügt!";
+            $_SESSION['flash_message'] = 'Mosaik erfolgreich hinzugefügt!';
+            $qs = http_build_query($listQuery);
+            header('Location: admin.php' . ($qs ? "?$qs" : ''));
+            exit;
         } else {
             $error = "Fehler beim Speichern in der Datenbank.";
             if ($dbImagePath) @unlink($targetDir . basename($dbImagePath));
@@ -97,18 +129,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
     $existing = $id ? $repository->find($id) : null;
 
-    if (!$existing) {
-        $error = 'Mosaik nicht gefunden.';
-    } else {
-        $title = $_POST['title'] ?? '';
-        $type = PublicationType::tryFrom($_POST['type'] ?? '')?->value ?? PublicationType::Heft->value;
-        $series = Series::tryFrom($_POST['series'] ?? '')?->value ?? Series::Digedags->value;
-        $availability = Availability::tryFrom($_POST['availability'] ?? '')?->value ?? Availability::Vorhanden->value;
-        $condition = Condition::tryFrom($_POST['item_condition'] ?? '')?->value ?? Condition::SehrGut->value;
-        $issueNumber = $_POST['issue_number'] ?? '';
-        $year = $_POST['release_year'] ?? '';
-        $month = $_POST['release_month'] ?? '';
-        $description = $_POST['description'] ?? '';
+        if (!$existing) {
+            $error = 'Mosaik nicht gefunden.';
+        } else {
+            // uuid is generated once on create, keep it stable
+            $uuid = $existing['uuid'] ?? null;
+
+            $title = $_POST['title'] ?? '';
+            $type = PublicationType::tryFrom($_POST['type'] ?? '')?->value ?? PublicationType::Heft->value;
+            $category = Category::tryFrom($_POST['category'] ?? '')?->value ?? Category::Abrafaxe->value;
+            $availability = Availability::tryFrom($_POST['availability'] ?? '')?->value ?? Availability::Vorhanden->value;
+            $condition = Condition::tryFrom($_POST['item_condition'] ?? '')?->value ?? Condition::SehrGut->value;
+            $issueNumber = $_POST['issue_number'] ?? '';
+            $mainSerie = trim((string)($_POST['main_serie'] ?? ''));
+            $serie = trim((string)($_POST['serie'] ?? ''));
+            $year = $_POST['release_year'] ?? '';
+            $month = $_POST['release_month'] ?? '';
+            $description = $_POST['description'] ?? '';
 
         $dbImagePath = $existing['image_path'];
         $oldImagePath = null;
@@ -161,10 +198,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         if ($uploadSuccess && empty($error)) {
             $success = $repository->update($id, [
+                'uuid' => $uuid,
                 'title' => $title,
                 'type' => $type,
-                'series' => $series,
+                'category' => $category,
                 'issue_number' => $issueNumber,
+                'main_serie' => $mainSerie !== '' ? $mainSerie : null,
+                'serie' => $serie !== '' ? $serie : null,
                 'availability' => $availability,
                 'item_condition' => $condition,
                 'release_year' => $year,
@@ -189,7 +229,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         @unlink($oldCondFullPath);
                     }
                 }
-                $message = "Mosaik erfolgreich aktualisiert!";
+                $_SESSION['flash_message'] = 'Mosaik erfolgreich aktualisiert!';
+                $qs = http_build_query($listQuery);
+                header('Location: admin.php' . ($qs ? "?$qs" : ''));
+                exit;
             } else {
                 $error = "Fehler beim Aktualisieren in der Datenbank.";
             }
@@ -219,7 +262,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
 
             if ($repository->delete($id)) {
-                $message = 'Mosaik erfolgreich gelöscht.';
+                $_SESSION['flash_message'] = 'Mosaik erfolgreich gelöscht.';
+                $qs = http_build_query($listQuery);
+                header('Location: admin.php' . ($qs ? "?$qs" : ''));
+                exit;
             } else {
                 $error = 'Fehler beim Löschen des Mosaiks.';
             }
@@ -237,7 +283,9 @@ $isEdit = $editMosaic !== null;
 // Formularwerte (im Bearbeiten-Modus vorbelegt, sonst Standardwerte)
 $formTitle = $editMosaic['title'] ?? '';
 $formType = $editMosaic['type'] ?? PublicationType::Heft->value;
-$formSeries = $editMosaic['series'] ?? Series::Digedags->value;
+$formCategory = $editMosaic['category'] ?? Category::Abrafaxe->value;
+$formMainSerie = $editMosaic['main_serie'] ?? '';
+$formSerie = $editMosaic['serie'] ?? '';
 $formAvailability = $editMosaic['availability'] ?? Availability::Vorhanden->value;
 $formCondition = $editMosaic['item_condition'] ?? Condition::SehrGut->value;
 $formIssue = $editMosaic['issue_number'] ?? '';
@@ -245,11 +293,12 @@ $formYear = $editMosaic['release_year'] ?? date('Y');
 $formMonth = $editMosaic['release_month'] ?? null;
 $formDescription = $editMosaic['description'] ?? '';
 
-// Handle series filtering on admin dashboard
-$filterSeries = Series::tryFrom($_GET['series'] ?? '')?->value;
 $mosaics = $repository->getFiltered([
-    'series' => $filterSeries
+    'category' => $filterCategory,
+    'year' => $filterYear,
 ], 'DESC');
+
+$years = $repository->getDistinctYears();
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -612,6 +661,28 @@ $mosaics = $repository->getFiltered([
                     <input type="hidden" name="id" value="<?= (int) $editMosaic['id'] ?>">
                 <?php endif; ?>
 
+                <?php if ($isEdit): ?>
+                    <div class="form-group">
+                        <label>Id</label>
+                        <input type="text" value="<?= (int) $editMosaic['id'] ?>" disabled>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Uuid</label>
+                        <input type="text" value="<?= htmlspecialchars((string) ($editMosaic['uuid'] ?? '')) ?>" disabled>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Created Date</label>
+                        <input type="text" value="<?= htmlspecialchars((string) ($editMosaic['created_at'] ?? '')) ?>" disabled>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Updated Date</label>
+                        <input type="text" value="<?= htmlspecialchars((string) ($editMosaic['updated_at'] ?? '')) ?>" disabled>
+                    </div>
+                <?php endif; ?>
+
                 <div class="form-group">
                     <label for="title">Titel *</label>
                     <input type="text" id="title" name="title" value="<?= htmlspecialchars($formTitle) ?>" required>
@@ -629,14 +700,24 @@ $mosaics = $repository->getFiltered([
                 </div>
 
                 <div class="form-group">
-                    <label for="series">Hauptserie *</label>
-                    <select id="series" name="series" required>
-                        <?php foreach (Series::cases() as $seriesCase): ?>
-                            <option value="<?= $seriesCase->value ?>" <?= $seriesCase->value === $formSeries ? 'selected' : '' ?>>
-                                <?= $seriesCase->label() ?>
+                    <label for="category">Kategorie *</label>
+                    <select id="category" name="category" required>
+                        <?php foreach (Category::cases() as $categoryCase): ?>
+                            <option value="<?= $categoryCase->value ?>" <?= $categoryCase->value === $formCategory ? 'selected' : '' ?>>
+                                <?= $categoryCase->label() ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="main_serie">Hauptserie</label>
+                    <input type="text" id="main_serie" name="main_serie" value="<?= htmlspecialchars((string) $formMainSerie) ?>">
+                </div>
+
+                <div class="form-group">
+                    <label for="serie">Serie</label>
+                    <input type="text" id="serie" name="serie" value="<?= htmlspecialchars((string) $formSerie) ?>">
                 </div>
 
                 <div class="form-group">
@@ -740,17 +821,30 @@ $mosaics = $repository->getFiltered([
 
             <form method="GET" style="margin-bottom: 1.5rem; display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
                 <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
-                    <label for="filter-series" style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Nach Hauptserie filtern</label>
-                    <select id="filter-series" name="series" onchange="this.form.submit()" style="width: 100%; background: #161b26; border: 1px solid var(--card-border); color: var(--text-primary); padding: 0.75rem 1rem; border-radius: 8px; font-family: var(--font-main); font-size: 1rem; outline: none;">
+                    <label for="filter-category" style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Nach Hauptserie filtern</label>
+                    <select id="filter-category" name="category" onchange="this.form.submit()" style="width: 100%; background: #161b26; border: 1px solid var(--card-border); color: var(--text-primary); padding: 0.75rem 1rem; border-radius: 8px; font-family: var(--font-main); font-size: 1rem; outline: none;">
                         <option value="">Alle</option>
-                        <?php foreach (Series::cases() as $seriesCase): ?>
-                            <option value="<?= $seriesCase->value ?>" <?= $filterSeries === $seriesCase->value ? 'selected' : '' ?>>
-                                <?= $seriesCase->label() ?>
+                        <?php foreach (Category::cases() as $categoryCase): ?>
+                            <option value="<?= $categoryCase->value ?>" <?= $filterCategory === $categoryCase->value ? 'selected' : '' ?>>
+                                <?= $categoryCase->label() ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <?php if ($filterSeries): ?>
+
+                <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 160px;">
+                    <label for="filter-year" style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Erscheinungsjahr</label>
+                    <select id="filter-year" name="year" onchange="this.form.submit()" style="width: 100%; background: #161b26; border: 1px solid var(--card-border); color: var(--text-primary); padding: 0.75rem 1rem; border-radius: 8px; font-family: var(--font-main); font-size: 1rem; outline: none;">
+                        <option value="">Alle</option>
+                        <?php foreach ($years as $year): ?>
+                            <option value="<?= (int) $year ?>" <?= $filterYear === (int) $year ? 'selected' : '' ?>>
+                                <?= (int) $year ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <?php if ($filterCategory || $filterYear): ?>
                     <a href="admin.php" class="btn btn-secondary" style="padding: 0.75rem 1.5rem;">Filter zurücksetzen</a>
                 <?php endif; ?>
             </form>
@@ -779,8 +873,8 @@ $mosaics = $repository->getFiltered([
                                 $monthLabel = $monthEnum ? $monthEnum->label() : $mosaic['release_month'];
                                 $typeEnum = PublicationType::tryFrom($mosaic['type'] ?? '');
                                 $typeLabel = $typeEnum ? $typeEnum->label() : ($mosaic['type'] ?? '');
-                                $seriesEnum = Series::tryFrom($mosaic['series'] ?? '');
-                                $seriesLabel = $seriesEnum ? $seriesEnum->label() : ($mosaic['series'] ?? '');
+                                $categoryEnum = Category::tryFrom($mosaic['category'] ?? '');
+                                $categoryLabel = $categoryEnum ? $categoryEnum->label() : ($mosaic['category'] ?? '');
                                 $condEnum = Condition::tryFrom($mosaic['item_condition'] ?? '');
                                 $condLabel = $condEnum ? $condEnum->label() : ($mosaic['item_condition'] ?? '');
                                 $isMissing = ($mosaic['availability'] ?? '') === Availability::Fehlt->value;
@@ -804,7 +898,7 @@ $mosaics = $repository->getFiltered([
                                         </div>
                                     </td>
                                     <td>
-                                        <div class="table-date"><?= htmlspecialchars($seriesLabel) ?><br>
+                                        <div class="table-date"><?= htmlspecialchars($categoryLabel) ?><br>
                                             <?= htmlspecialchars($condLabel) ?></div>
                                     </td>
                                     <td>
@@ -813,12 +907,14 @@ $mosaics = $repository->getFiltered([
                                     </td>
                                     <td>
                                         <div style="display: flex; gap: 0.5rem;">
-                                            <a href="?edit=<?= $mosaic['id'] ?>" class="btn btn-secondary"
+                                            <a href="?<?= http_build_query(array_merge($listQuery, ['edit' => $mosaic['id']])) ?>" class="btn btn-secondary"
                                                 style="padding: 0.5rem 1rem; font-size: 0.875rem;">Bearbeiten</a>
                                             <form method="POST"
                                                 onsubmit="return confirm('Möchten Sie dieses Mosaik wirklich löschen?');">
                                                 <input type="hidden" name="action" value="delete">
                                                 <input type="hidden" name="id" value="<?= $mosaic['id'] ?>">
+                                                <input type="hidden" name="list_category" value="<?= htmlspecialchars((string) ($filterCategory ?? '')) ?>">
+                                                <input type="hidden" name="list_year" value="<?= htmlspecialchars((string) ($filterYear ?? '')) ?>">
                                                 <button type="submit" class="btn btn-danger"
                                                     style="padding: 0.5rem 1rem; font-size: 0.875rem;">Löschen</button>
                                             </form>

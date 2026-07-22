@@ -2,10 +2,10 @@
 
 namespace App\Enums;
 
-enum Series: string
+enum Category: string
 {
-    case Abrafaxe = 'abrafaxe';
-    case Digedags = 'digedags';
+    case Abrafaxe = 'Abrafaxe';
+    case Digedags = 'Digedags';
 
     public function label(): string
     {

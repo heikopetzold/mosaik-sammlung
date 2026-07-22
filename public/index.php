@@ -4,7 +4,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use App\Classes\MosaicRepository;
 use App\Enums\Month;
 use App\Enums\PublicationType;
-use App\Enums\Series;
+use App\Enums\Category;
 use App\Enums\Availability;
 use App\Enums\Condition;
 
@@ -13,14 +13,20 @@ $sort = $_GET['sort'] ?? 'ASC';
 
 // Filter aus der URL (leere/ungültige Werte werden ignoriert)
 $filterYear = isset($_GET['year']) && $_GET['year'] !== '' ? (int) $_GET['year'] : null;
-$filterSeries = Series::tryFrom($_GET['series'] ?? '')?->value;
+$filterCategory = Category::tryFrom($_GET['category'] ?? '')?->value;
 $filterCondition = Condition::tryFrom($_GET['condition'] ?? '')?->value;
 
-$mosaics = $repository->getFiltered([
-    'year' => $filterYear,
-    'series' => $filterSeries,
-    'condition' => $filterCondition,
-], $sort);
+$hasFilters = ($filterYear !== null) || ($filterCategory !== null) || ($filterCondition !== null);
+
+if ($hasFilters) {
+    $mosaics = $repository->getFiltered([
+        'year' => $filterYear,
+        'category' => $filterCategory,
+        'condition' => $filterCondition,
+    ], $sort);
+} else {
+    $mosaics = $repository->getRandom(6);
+}
 
 $years = $repository->getDistinctYears();
 ?>
@@ -268,7 +274,7 @@ $years = $repository->getDistinctYears();
             left: 0;
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
             transition: transform 0.5s ease;
         }
 
@@ -314,18 +320,16 @@ $years = $repository->getDistinctYears();
             line-height: 1.4;
         }
 
-        .card-description {
+        .card-meta {
             color: var(--text-secondary);
             font-size: 0.95rem;
             line-height: 1.6;
+            margin-top: 0.35rem;
             flex: 1;
         }
 
-        .card-condition {
-            margin-top: 1rem;
-            font-size: 0.8rem;
-            font-weight: 500;
-            color: var(--text-secondary);
+        .card-meta-row {
+            display: block;
         }
 
         .card-badge-missing {
@@ -337,6 +341,11 @@ $years = $repository->getDistinctYears();
 
         .card-missing {
             opacity: 0.75;
+            border-color: rgba(239, 68, 68, 0.8);
+        }
+
+        .card-missing:hover {
+            border-color: rgba(239, 68, 68, 1);
         }
 
         .card-missing:hover {
@@ -489,6 +498,36 @@ $years = $repository->getDistinctYears();
             border-bottom: 1px solid var(--card-border);
             padding-bottom: 0.25rem;
         }
+
+        /* Key/Value list in modal */
+        .meta-kv {
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            column-gap: 1rem;
+            row-gap: 0.35rem;
+            margin: 0 0 1.25rem;
+        }
+
+        .meta-kv dt {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+
+        .meta-kv dd {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 520px) {
+            .meta-kv {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 
@@ -506,7 +545,7 @@ $years = $repository->getDistinctYears();
         // Aktive Filter für das Erhalten beim Umsortieren
         $activeFilters = array_filter([
             'year' => $filterYear,
-            'series' => $filterSeries,
+            'category' => $filterCategory,
             'condition' => $filterCondition,
         ], fn($v) => $v !== null && $v !== '');
         $sortAscUrl = '?' . http_build_query(array_merge($activeFilters, ['sort' => 'ASC']));
@@ -517,18 +556,22 @@ $years = $repository->getDistinctYears();
             <a href="<?= $sortAscUrl ?>" class="<?= $sort === 'ASC' ? 'active' : '' ?>">Älteste zuerst</a>
             <span class="separator">|</span>
             <a href="<?= $sortDescUrl ?>" class="<?= $sort === 'DESC' ? 'active' : '' ?>">Neueste zuerst</a>
+            <?php if (!$hasFilters): ?>
+                <span class="separator">|</span>
+                <span style="color: var(--text-secondary);">6 zufällige Medien</span>
+            <?php endif; ?>
         </div>
 
         <form method="GET" class="filter-bar">
             <input type="hidden" name="sort" value="<?= htmlspecialchars($sort) ?>">
 
             <div class="filter-group">
-                <label for="filter-series">Hauptserie</label>
-                <select id="filter-series" name="series">
+                <label for="filter-category">Kategorie</label>
+                <select id="filter-category" name="category">
                     <option value="">Alle</option>
-                    <?php foreach (Series::cases() as $seriesCase): ?>
-                        <option value="<?= $seriesCase->value ?>" <?= $filterSeries === $seriesCase->value ? 'selected' : '' ?>>
-                            <?= $seriesCase->label() ?>
+                    <?php foreach (Category::cases() as $categoryCase): ?>
+                        <option value="<?= $categoryCase->value ?>" <?= $filterCategory === $categoryCase->value ? 'selected' : '' ?>>
+                            <?= $categoryCase->label() ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -581,23 +624,30 @@ $years = $repository->getDistinctYears();
                     $monthLabel = $monthEnum ? $monthEnum->label() : $mosaik['release_month'];
                     $typeEnum = PublicationType::tryFrom($mosaik['type'] ?? '');
                     $typeLabel = $typeEnum ? $typeEnum->label() : ($mosaik['type'] ?? '');
-                    $seriesEnum = Series::tryFrom($mosaik['series'] ?? '');
-                    $seriesLabel = $seriesEnum ? $seriesEnum->label() : ($mosaik['series'] ?? '');
+                    $categoryEnum = Category::tryFrom($mosaik['category'] ?? '');
+                    $categoryLabel = $categoryEnum ? $categoryEnum->label() : ($mosaik['category'] ?? '');
                     $condEnum = Condition::tryFrom($mosaik['item_condition'] ?? '');
                     $condLabel = $condEnum ? $condEnum->label() : ($mosaik['item_condition'] ?? '');
                     $isMissing = ($mosaik['availability'] ?? '') === Availability::Fehlt->value;
-                    $subtitleParts = array_filter([
-                        $seriesLabel,
-                        trim($typeLabel . (!empty($mosaik['issue_number']) ? ' Nr. ' . $mosaik['issue_number'] : '')),
-                    ]);
-                    $subtitle = implode(' · ', $subtitleParts);
+                    $availabilityEnum = Availability::tryFrom($mosaik['availability'] ?? '');
+                    $availabilityLabel = $availabilityEnum ? $availabilityEnum->label() : ($mosaik['availability'] ?? '');
+                    $releaseLabel = trim($monthLabel . ' ' . ($mosaik['release_year'] ?? ''));
+                    $issueNumberLabel = (string) ($mosaik['issue_number'] ?? '');
                     ?>
                     <article class="card<?= $isMissing ? ' card-missing' : '' ?>"
-                             style="cursor: pointer;"
-                             data-title="<?= htmlspecialchars($mosaik['title']) ?>"
-                             data-description="<?= htmlspecialchars($mosaik['description'] ?? '') ?>"
-                             data-image="<?= htmlspecialchars($mosaik['image_path'] ?? '') ?>"
-                             data-condition-image="<?= htmlspecialchars($mosaik['image_path_current_condition'] ?? '') ?>">
+                              style="cursor: pointer;"
+                              data-category="<?= htmlspecialchars($categoryLabel) ?>"
+                              data-type="<?= htmlspecialchars($typeLabel) ?>"
+                              data-title="<?= htmlspecialchars($mosaik['title']) ?>"
+                              data-issue-number="<?= htmlspecialchars((string)($mosaik['issue_number'] ?? '')) ?>"
+                              data-main-serie="<?= htmlspecialchars((string)($mosaik['main_serie'] ?? '')) ?>"
+                              data-serie="<?= htmlspecialchars((string)($mosaik['serie'] ?? '')) ?>"
+                              data-availability="<?= htmlspecialchars((string) $availabilityLabel) ?>"
+                              data-condition="<?= htmlspecialchars($condLabel) ?>"
+                              data-release="<?= htmlspecialchars($releaseLabel) ?>"
+                              data-description="<?= htmlspecialchars($mosaik['description'] ?? '') ?>"
+                              data-image="<?= htmlspecialchars($mosaik['image_path'] ?? '') ?>"
+                              data-condition-image="<?= htmlspecialchars($mosaik['image_path_current_condition'] ?? '') ?>">
                         <div class="card-image-wrapper">
                             <?php if (!empty($mosaik['image_path'])): ?>
                                 <img src="<?= htmlspecialchars($mosaik['image_path']) ?>" alt="Mosaik Cover" class="card-image"
@@ -610,12 +660,17 @@ $years = $repository->getDistinctYears();
                             <?php endif; ?>
                         </div>
                         <div class="card-content">
-                            <?php if ($subtitle !== ''): ?>
-                                <span class="card-type"><?= htmlspecialchars($subtitle) ?></span>
-                            <?php endif; ?>
+                            <span class="card-type"><?= htmlspecialchars($categoryLabel) ?></span>
                             <h2 class="card-title"><?= htmlspecialchars($mosaik['title']) ?></h2>
-                            <p class="card-description"><?= nl2br(htmlspecialchars($mosaik['description'] ?? '')) ?></p>
-                            <span class="card-condition">Zustand: <?= htmlspecialchars($condLabel) ?></span>
+                            <div class="card-meta">
+                                <span class="card-meta-row">Typ: <?= htmlspecialchars($typeLabel) ?></span>
+                                <?php if ($issueNumberLabel !== ''): ?>
+                                    <span class="card-meta-row">Nummer: <?= htmlspecialchars($issueNumberLabel) ?></span>
+                                <?php endif; ?>
+                                <?php if ($releaseLabel !== ''): ?>
+                                    <span class="card-meta-row">Erscheinung: <?= htmlspecialchars($releaseLabel) ?></span>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     </article>
                 <?php endforeach; ?>
@@ -628,6 +683,7 @@ $years = $repository->getDistinctYears();
         <div class="modal-content">
             <button class="modal-close" id="modal-close">&times;</button>
             <h2 id="m-title" style="font-size: 1.75rem; margin-bottom: 1rem; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Titel</h2>
+            <dl id="m-meta" class="meta-kv"></dl>
             <div class="modal-grid">
                 <!-- Images Column -->
                 <div class="modal-image-col">
@@ -670,8 +726,39 @@ $years = $repository->getDistinctYears();
                     const image = card.getAttribute('data-image');
                     const condImage = card.getAttribute('data-condition-image');
 
+                    const category = card.getAttribute('data-category') || '';
+                    const type = card.getAttribute('data-type') || '';
+                    const issueNumber = card.getAttribute('data-issue-number') || '';
+                    const mainSerie = card.getAttribute('data-main-serie') || '';
+                    const serie = card.getAttribute('data-serie') || '';
+                    const availability = card.getAttribute('data-availability') || '';
+                    const condition = card.getAttribute('data-condition') || '';
+                    const release = card.getAttribute('data-release') || '';
+
                     document.getElementById('m-title').textContent = title;
                     document.getElementById('m-description').textContent = description;
+
+                    const metaPairs = [
+                        category ? ['Kategorie', category] : null,
+                        type ? ['Typ', type] : null,
+                        issueNumber ? ['Nummer', issueNumber] : null,
+                        mainSerie ? ['Hauptserie', mainSerie] : null,
+                        serie ? ['Serie', serie] : null,
+                        availability ? ['Verfügbarkeit', availability] : null,
+                        condition ? ['Zustand', condition] : null,
+                        release ? ['Erscheinung', release] : null,
+                    ].filter(Boolean);
+
+                    const metaEl = document.getElementById('m-meta');
+                    metaEl.innerHTML = '';
+                    metaPairs.forEach(([k, v]) => {
+                        const dt = document.createElement('dt');
+                        dt.textContent = k;
+                        const dd = document.createElement('dd');
+                        dd.textContent = v;
+                        metaEl.appendChild(dt);
+                        metaEl.appendChild(dd);
+                    });
 
                     const coverWrapper = document.getElementById('m-cover-wrapper');
                     const coverImg = document.getElementById('m-cover-img');

@@ -4,6 +4,7 @@ namespace App\Interfaces;
 
 interface MosaicRepositoryInterface
 {
+    public function getRandom(int $limit = 6): array;
     public function getAllSorted(string $order): array;
     public function getFiltered(array $filters, string $order): array;
     public function getDistinctYears(): array;

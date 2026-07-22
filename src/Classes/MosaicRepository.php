@@ -7,6 +7,12 @@ use App\Facades\DB;
 class MosaicRepository implements MosaicRepositoryInterface
 {
 
+    public function getRandom(int $limit = 6): array
+    {
+        $limit = max(1, min(100, (int) $limit));
+        return DB::query("SELECT * FROM mosaics ORDER BY RAND() LIMIT $limit")->fetchAll();
+    }
+
     public function getAllSorted(string $order = 'ASC'): array
     {
         return $this->getFiltered([], $order);
@@ -23,9 +29,9 @@ class MosaicRepository implements MosaicRepositoryInterface
             $where[] = 'release_year = :year';
             $params['year'] = (int) $filters['year'];
         }
-        if (!empty($filters['series'])) {
-            $where[] = 'series = :series';
-            $params['series'] = $filters['series'];
+        if (!empty($filters['category'])) {
+            $where[] = 'category = :category';
+            $params['category'] = $filters['category'];
         }
         if (!empty($filters['condition'])) {
             $where[] = 'item_condition = :condition';
@@ -56,14 +62,19 @@ class MosaicRepository implements MosaicRepositoryInterface
 
     public function save(array $data): bool
     {
-        $sql = "INSERT INTO mosaics (title, type, series, issue_number, availability, item_condition, release_year, release_month, description, image_path, image_path_current_condition)
-                VALUES (:title, :type, :series, :issue_number, :availability, :item_condition, :release_year, :release_month, :description, :image_path, :image_path_current_condition)";
+        $uuid = $data['uuid'] ?? bin2hex(random_bytes(16));
+
+        $sql = "INSERT INTO mosaics (uuid, type, category, title, issue_number, main_serie, serie, availability, item_condition, release_year, release_month, description, image_path, image_path_current_condition)
+                VALUES (:uuid, :type, :category, :title, :issue_number, :main_serie, :serie, :availability, :item_condition, :release_year, :release_month, :description, :image_path, :image_path_current_condition)";
 
         $stmt = DB::query($sql, [
-            'title' => $data['title'],
+            'uuid' => $uuid,
             'type' => $data['type'] ?? 'heft',
-            'series' => $data['series'] ?? 'abrafaxe',
+            'category' => $data['category'] ?? 'Abrafaxe',
+            'title' => $data['title'],
             'issue_number' => $this->normalizeIssueNumber($data['issue_number'] ?? null),
+            'main_serie' => $data['main_serie'] ?? null,
+            'serie' => $data['serie'] ?? null,
             'availability' => $data['availability'] ?? 'vorhanden',
             'item_condition' => $data['item_condition'] ?? 'sehr_gut',
             'release_year' => (int) $data['release_year'],
@@ -79,10 +90,13 @@ class MosaicRepository implements MosaicRepositoryInterface
     public function update(int $id, array $data): bool
     {
         $sql = "UPDATE mosaics SET
-                    title = :title,
+                    uuid = :uuid,
                     type = :type,
-                    series = :series,
+                    category = :category,
+                    title = :title,
                     issue_number = :issue_number,
+                    main_serie = :main_serie,
+                    serie = :serie,
                     availability = :availability,
                     item_condition = :item_condition,
                     release_year = :release_year,
@@ -93,10 +107,14 @@ class MosaicRepository implements MosaicRepositoryInterface
                 WHERE id = :id";
 
         $stmt = DB::query($sql, [
-            'title' => $data['title'],
+            // keep existing uuid unless explicitly set; admin passes existing one
+            'uuid' => $data['uuid'] ?? bin2hex(random_bytes(16)),
             'type' => $data['type'] ?? 'heft',
-            'series' => $data['series'] ?? 'abrafaxe',
+            'category' => $data['category'] ?? 'Abrafaxe',
+            'title' => $data['title'],
             'issue_number' => $this->normalizeIssueNumber($data['issue_number'] ?? null),
+            'main_serie' => $data['main_serie'] ?? null,
+            'serie' => $data['serie'] ?? null,
             'availability' => $data['availability'] ?? 'vorhanden',
             'item_condition' => $data['item_condition'] ?? 'sehr_gut',
             'release_year' => (int) $data['release_year'],
