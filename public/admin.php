@@ -293,6 +293,12 @@ $formYear = $editMosaic['release_year'] ?? date('Y');
 $formMonth = $editMosaic['release_month'] ?? null;
 $formDescription = $editMosaic['description'] ?? '';
 
+// In edit mode, preserve current list filters in the URL for the cancel link.
+$cancelUrl = 'admin.php';
+if (!empty($listQuery)) {
+    $cancelUrl .= '?' . http_build_query($listQuery);
+}
+
 $mosaics = $repository->getFiltered([
     'category' => $filterCategory,
     'year' => $filterYear,
@@ -661,6 +667,10 @@ $years = $repository->getDistinctYears();
                     <input type="hidden" name="id" value="<?= (int) $editMosaic['id'] ?>">
                 <?php endif; ?>
 
+                <!-- Keep list filters when submitting the form (create/update). -->
+                <input type="hidden" name="list_category" value="<?= htmlspecialchars((string) ($filterCategory ?? '')) ?>">
+                <input type="hidden" name="list_year" value="<?= htmlspecialchars((string) ($filterYear ?? '')) ?>">
+
                 <?php if ($isEdit): ?>
                     <div class="form-group">
                         <label>Id</label>
@@ -810,7 +820,7 @@ $years = $repository->getDistinctYears();
                     <?= $isEdit ? 'Aktualisieren' : 'Speichern' ?>
                 </button>
                 <?php if ($isEdit): ?>
-                    <a href="admin.php" class="btn btn-secondary" style="width: 100%; margin-top: 0.75rem;">Abbrechen</a>
+                    <a href="<?= htmlspecialchars($cancelUrl) ?>" class="btn btn-secondary" style="width: 100%; margin-top: 0.75rem;">Abbrechen</a>
                 <?php endif; ?>
             </form>
         </section>
