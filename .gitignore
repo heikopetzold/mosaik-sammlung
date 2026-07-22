@@ -1,5 +1,6 @@
 .claude/
 vendor/
+images/
 
 # Environment (Credentials)
 .env
