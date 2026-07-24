@@ -683,13 +683,13 @@ $years = $repository->getDistinctYears();
                     </div>
 
                     <div class="form-group">
-                        <label>Created Date</label>
-                        <input type="text" value="<?= htmlspecialchars((string) ($editMosaic['created_at'] ?? '')) ?>" disabled>
+                        <label>Erstellt</label>
+                        <input type="text" value="<?= htmlspecialchars((string) substr(($editMosaic['created_at'] ?? ''), 0, 10)) ?>" disabled>
                     </div>
 
                     <div class="form-group">
-                        <label>Updated Date</label>
-                        <input type="text" value="<?= htmlspecialchars((string) ($editMosaic['updated_at'] ?? '')) ?>" disabled>
+                        <label>Upgedated</label>
+                        <input type="text" value="<?= htmlspecialchars((string) substr(($editMosaic['updated_at'] ?? ''), 0, 10)) ?>" disabled>
                     </div>
                 <?php endif; ?>
 
