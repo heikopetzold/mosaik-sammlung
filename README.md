@@ -43,8 +43,8 @@ Die Admincredentials sollen sein:
 Benutzer: admin
 Pwd: admin123
 
-
-
+Script zum Bilderimport:
+lando php scripts/import_abrafaxe_images.php --limit=200 --allow-jpg
 
 
 
@@ -101,6 +101,10 @@ lando mysql lamp < migrations/001_mosaics_v2.sql
 
 - Benutzer: `admin`
 - Passwort: `admin123`
+
+
+mach mir ein script, dass die mosaic tabelle (category=Abrafaxe, image_path=NULL) ausließt. schaue im ordner images/abrafaxe und uploade die dazugehörigen files mit dem Muster  (mosaics.issue_number).png. speichere dann den image_path zum dazugehörigen datensatzes
+
 
 
 

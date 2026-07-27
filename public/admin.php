@@ -776,7 +776,7 @@ $years = $repository->getDistinctYears();
                 </div>
 
                 <div class="form-group">
-                    <label>Bild (Gesamtbild) <?= $isEdit ? '(leer lassen, um das aktuelle Bild zu behalten)' : 'auswählen *' ?></label>
+                    <label>Bild (Gesamtbild) <?= $isEdit ? '(leer lassen, um das aktuelle Bild zu behalten)' : '(optional)' ?></label>
                     <?php if ($isEdit && !empty($editMosaic['image_path'])): ?>
                         <img src="<?= htmlspecialchars($editMosaic['image_path']) ?>" alt="Aktuelles Bild"
                             style="width: 100%; max-height: 160px; object-fit: cover; border-radius: 8px; margin-bottom: 0.75rem;">
@@ -790,7 +790,7 @@ $years = $repository->getDistinctYears();
                         </svg>
                         <span id="upload-text"><?= $isEdit ? 'Neues Bild auswählen' : 'Bild auswählen' ?></span>
                     </label>
-                    <input type="file" id="image" name="image" accept="image/*" <?= $isEdit ? '' : 'required' ?>>
+                    <input type="file" id="image" name="image" accept="image/*">
                 </div>
 
                 <div class="form-group">
