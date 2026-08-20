@@ -51,7 +51,9 @@ if (!empty($_SESSION['flash_error'])) {
 
 // List filters (persist across POST/redirect)
 $filterCategory = Category::tryFrom($_GET['category'] ?? '')?->value;
-$filterYear = isset($_GET['year']) && $_GET['year'] !== '' ? (int) $_GET['year'] : null;
+$filterYear = array_key_exists('year', $_GET)
+    ? ($_GET['year'] !== '' ? (int) $_GET['year'] : null)
+    : (int) date('Y');
 
 // If the request is POST we might keep the list filters via hidden inputs
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -934,7 +936,7 @@ $years = $repository->getDistinctYears();
                 </div>
 
                 <?php if ($filterCategory || $filterYear): ?>
-                    <a href="admin.php" class="btn btn-secondary" style="padding: 0.75rem 1.5rem;">Filter zurücksetzen</a>
+                    <a href="admin.php?year=" class="btn btn-secondary" style="padding: 0.75rem 1.5rem;">Filter zurücksetzen</a>
                 <?php endif; ?>
             </form>
 

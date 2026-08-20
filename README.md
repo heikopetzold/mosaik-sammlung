@@ -43,6 +43,7 @@ image_path_current_condition mehrere bilder speichern können.
 Ich möchte auch eine JSON ausgabe haben
  -einen Datensatz, wenn mittels uuid angefragt wird
  -mehrere datensätze, wenn mittels type,category,title, issue_number, main_serie, serie, availability, item_condition, release_year angefragt wird
+Wenn die Adminseite das erste mal aufgerufen wird, setze den Filter auf das aktuelle Jahr
 
 ### JSON API
 
@@ -115,8 +116,10 @@ lando mysql lamp < migrations/001_mosaics_v2.sql
 - Passwort: `admin123`
 
 
-mach mir ein script, dass die mosaic tabelle (category=Abrafaxe, image_path=NULL) ausließt. schaue im ordner images/abrafaxe und uploade die dazugehörigen files mit dem Muster  (mosaics.issue_number).png. speichere dann den image_path zum dazugehörigen datensatzes
-
+Mach mir ein Script, dass die mosaic tabelle (category=Abrafaxe, image_path=NULL) ausließt. 
+Schaue im ordner images/abrafaxe und uploade die dazugehörigen files mit dem Muster  (mosaics.issue_number).png. 
+Speichere dann den image_path zum dazugehörigen Datensatz.
+lando php scripts/import_abrafaxe_images.php --limit=200 --allow-jpg
 
 
 
