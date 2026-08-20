@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS `mosaics` (
   `release_month` INT NOT NULL,
   `description` TEXT NULL,
   `image_path` VARCHAR(255) NULL,
-  `image_path_current_condition` VARCHAR(255) NULL,
+  -- Stores JSON array of upload paths (e.g. ["uploads/a.png","uploads/b.png"]).
+  -- We use TEXT to keep backwards-compatible with older single-string values.
+  `image_path_current_condition` TEXT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY `uniq_uuid` (`uuid`),

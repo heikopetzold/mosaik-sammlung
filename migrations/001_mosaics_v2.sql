@@ -32,6 +32,22 @@ ALTER TABLE `mosaics`
   MODIFY COLUMN `item_condition` VARCHAR(255) NOT NULL DEFAULT 'sehr_gut',
   MODIFY COLUMN `category` VARCHAR(255) NOT NULL DEFAULT 'Abrafaxe';
 
+-- 2b) Ensure condition image column exists and is TEXT (supports JSON array or legacy string)
+SELECT COUNT(*) INTO @has_img_cond
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = @db AND TABLE_NAME = 'mosaics' AND COLUMN_NAME = 'image_path_current_condition';
+
+SET @sql := IF(
+  @has_img_cond = 0,
+  "ALTER TABLE `mosaics` ADD COLUMN `image_path_current_condition` TEXT NULL AFTER `image_path`",
+  "SELECT 1"
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+ALTER TABLE `mosaics` MODIFY COLUMN `image_path_current_condition` TEXT NULL;
+
 -- 3) Add missing columns (conditionally)
 SELECT COUNT(*) INTO @has_uuid
 FROM information_schema.COLUMNS

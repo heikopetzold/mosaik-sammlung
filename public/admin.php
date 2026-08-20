@@ -13,6 +13,28 @@ use App\Enums\Category;
 use App\Enums\Availability;
 use App\Enums\Condition;
 
+function parseConditionImagePaths($value): array
+{
+    if ($value === null) {
+        return [];
+    }
+    $value = trim((string) $value);
+    if ($value === '') {
+        return [];
+    }
+
+    // New format: JSON array of paths.
+    if (str_starts_with($value, '[')) {
+        $decoded = json_decode($value, true);
+        if (is_array($decoded)) {
+            return array_values(array_filter(array_map('strval', $decoded), static fn($p) => $p !== ''));
+        }
+    }
+
+    // Old format: single string path.
+    return [$value];
+}
+
 $repository = new MosaicRepository();
 $message = '';
 $error = '';
@@ -77,16 +99,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     }
 
-    // Condition image upload
-    $dbImagePathCondition = null;
-    if ($uploadSuccess && !empty($_FILES["image_condition"]["name"]) && $_FILES["image_condition"]["error"] === UPLOAD_ERR_OK) {
-        $fileNameCondition = time() . '_cond_' . basename($_FILES["image_condition"]["name"]);
-        $targetFilePathCondition = $targetDir . $fileNameCondition;
-        if (move_uploaded_file($_FILES["image_condition"]["tmp_name"], $targetFilePathCondition)) {
-            $dbImagePathCondition = 'uploads/' . $fileNameCondition;
-        } else {
-            $uploadSuccess = false;
-            $error = "Fehler beim Zustand-Bildupload.";
+    // Condition image upload (multiple)
+    $dbImagePathsCondition = [];
+    if ($uploadSuccess && !empty($_FILES['image_condition']['name'])) {
+        $names = $_FILES['image_condition']['name'];
+        $tmpNames = $_FILES['image_condition']['tmp_name'];
+        $errors = $_FILES['image_condition']['error'];
+
+        $count = is_array($names) ? count($names) : 1;
+        for ($i = 0; $i < $count; $i++) {
+            $name = is_array($names) ? ($names[$i] ?? '') : $names;
+            $tmp = is_array($tmpNames) ? ($tmpNames[$i] ?? '') : $tmpNames;
+            $err = is_array($errors) ? ($errors[$i] ?? UPLOAD_ERR_NO_FILE) : $errors;
+
+            if ($name === '' || $err === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            if ($err !== UPLOAD_ERR_OK) {
+                $uploadSuccess = false;
+                $error = "Fehler beim Zustand-Bildupload.";
+                break;
+            }
+
+            $fileNameCondition = time() . '_cond_' . bin2hex(random_bytes(4)) . '_' . basename($name);
+            $targetFilePathCondition = $targetDir . $fileNameCondition;
+            if (move_uploaded_file($tmp, $targetFilePathCondition)) {
+                $dbImagePathsCondition[] = 'uploads/' . $fileNameCondition;
+            } else {
+                $uploadSuccess = false;
+                $error = "Fehler beim Zustand-Bildupload.";
+                break;
+            }
+        }
+
+        if (!$uploadSuccess) {
+            foreach ($dbImagePathsCondition as $p) {
+                @unlink($targetDir . basename($p));
+            }
             // cleanup first uploaded file if any
             if ($dbImagePath) {
                 @unlink($targetDir . basename($dbImagePath));
@@ -108,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'release_month' => $month,
             'description' => $description,
             'image_path' => $dbImagePath,
-            'image_path_current_condition' => $dbImagePathCondition
+            'image_path_current_condition' => $dbImagePathsCondition ? $dbImagePathsCondition : null
         ]);
 
         if ($success) {
@@ -119,7 +168,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         } else {
             $error = "Fehler beim Speichern in der Datenbank.";
             if ($dbImagePath) @unlink($targetDir . basename($dbImagePath));
-            if ($dbImagePathCondition) @unlink($targetDir . basename($dbImagePathCondition));
+            foreach ($dbImagePathsCondition as $p) {
+                @unlink($targetDir . basename($p));
+            }
         }
     }
 }
@@ -170,25 +221,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
 
-        // Update condition image
-        $dbImagePathCondition = $existing['image_path_current_condition'] ?? null;
-        $oldImagePathCondition = null;
+        // Update condition images (multiple).
+        // We *append* new images, we do not remove existing ones here.
+        $existingConditionPaths = parseConditionImagePaths($existing['image_path_current_condition'] ?? null);
+        $dbImagePathsCondition = $existingConditionPaths;
 
-        if ($uploadSuccess && !empty($_FILES['image_condition']['name']) && $_FILES['image_condition']['error'] === UPLOAD_ERR_OK) {
+        if ($uploadSuccess && !empty($_FILES['image_condition']['name'])) {
             $targetDir = __DIR__ . '/uploads/';
             if (!is_dir($targetDir)) {
                 mkdir($targetDir, 0777, true);
             }
 
-            $fileNameCondition = time() . '_cond_' . basename($_FILES["image_condition"]["name"]);
-            $targetFilePathCondition = $targetDir . $fileNameCondition;
+            $newPaths = [];
+            $names = $_FILES['image_condition']['name'];
+            $tmpNames = $_FILES['image_condition']['tmp_name'];
+            $errors = $_FILES['image_condition']['error'];
 
-            if (move_uploaded_file($_FILES["image_condition"]["tmp_name"], $targetFilePathCondition)) {
-                $oldImagePathCondition = $existing['image_path_current_condition'] ?? null;
-                $dbImagePathCondition = 'uploads/' . $fileNameCondition;
+            $count = is_array($names) ? count($names) : 1;
+            for ($i = 0; $i < $count; $i++) {
+                $name = is_array($names) ? ($names[$i] ?? '') : $names;
+                $tmp = is_array($tmpNames) ? ($tmpNames[$i] ?? '') : $tmpNames;
+                $err = is_array($errors) ? ($errors[$i] ?? UPLOAD_ERR_NO_FILE) : $errors;
+
+                if ($name === '' || $err === UPLOAD_ERR_NO_FILE) {
+                    continue;
+                }
+                if ($err !== UPLOAD_ERR_OK) {
+                    $uploadSuccess = false;
+                    $error = "Fehler beim Zustand-Bildupload.";
+                    break;
+                }
+
+                $fileNameCondition = time() . '_cond_' . bin2hex(random_bytes(4)) . '_' . basename($name);
+                $targetFilePathCondition = $targetDir . $fileNameCondition;
+
+                if (move_uploaded_file($tmp, $targetFilePathCondition)) {
+                    $newPaths[] = 'uploads/' . $fileNameCondition;
+                } else {
+                    $uploadSuccess = false;
+                    $error = "Fehler beim Zustand-Bildupload.";
+                    break;
+                }
+            }
+
+            if ($uploadSuccess) {
+                $dbImagePathsCondition = array_values(array_unique(array_merge($existingConditionPaths, $newPaths)));
             } else {
-                $uploadSuccess = false;
-                $error = "Fehler beim Zustand-Bildupload.";
+                foreach ($newPaths as $p) {
+                    @unlink($targetDir . basename($p));
+                }
                 // cleanup new main image if we uploaded it in this request
                 if ($oldImagePath !== null && $dbImagePath !== $existing['image_path']) {
                     @unlink($targetDir . basename($dbImagePath));
@@ -211,7 +292,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 'release_month' => $month,
                 'description' => $description,
                 'image_path' => $dbImagePath,
-                'image_path_current_condition' => $dbImagePathCondition
+                'image_path_current_condition' => $dbImagePathsCondition ? $dbImagePathsCondition : null
             ]);
 
             if ($success) {
@@ -222,13 +303,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         @unlink($oldFullPath);
                     }
                 }
-                // Remove old condition image
-                if ($oldImagePathCondition) {
-                    $oldCondFullPath = __DIR__ . '/' . $oldImagePathCondition;
-                    if (file_exists($oldCondFullPath)) {
-                        @unlink($oldCondFullPath);
-                    }
-                }
+                // Condition images can be multiple; we do not auto-remove on update.
                 $_SESSION['flash_message'] = 'Mosaik erfolgreich aktualisiert!';
                 $qs = http_build_query($listQuery);
                 header('Location: admin.php' . ($qs ? "?$qs" : ''));
@@ -255,9 +330,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
             // Delete condition image file
             if (!empty($mosaic['image_path_current_condition'])) {
-                $condFullPath = __DIR__ . '/' . $mosaic['image_path_current_condition'];
-                if (file_exists($condFullPath)) {
-                    @unlink($condFullPath);
+                foreach (parseConditionImagePaths($mosaic['image_path_current_condition']) as $p) {
+                    $condFullPath = __DIR__ . '/' . $p;
+                    if (file_exists($condFullPath)) {
+                        @unlink($condFullPath);
+                    }
                 }
             }
 
@@ -794,10 +871,12 @@ $years = $repository->getDistinctYears();
                 </div>
 
                 <div class="form-group">
-                    <label>Bild aktueller Zustand <?= $isEdit ? '(leer lassen, um das aktuelle Zustand-Bild zu behalten)' : 'auswählen' ?></label>
+                    <label>Zustandsbilder <?= $isEdit ? '(optional, fügt weitere Bilder hinzu)' : '(optional)' ?></label>
                     <?php if ($isEdit && !empty($editMosaic['image_path_current_condition'])): ?>
-                        <img src="<?= htmlspecialchars($editMosaic['image_path_current_condition']) ?>" alt="Aktuelles Zustand-Bild"
-                            style="width: 100%; max-height: 160px; object-fit: cover; border-radius: 8px; margin-bottom: 0.75rem;">
+                        <?php foreach (parseConditionImagePaths($editMosaic['image_path_current_condition']) as $p): ?>
+                            <img src="<?= htmlspecialchars($p) ?>" alt="Zustand-Bild"
+                                style="width: 100%; max-height: 160px; object-fit: cover; border-radius: 8px; margin-bottom: 0.75rem;">
+                        <?php endforeach; ?>
                     <?php endif; ?>
                     <label for="image_condition" class="file-upload-btn" id="upload-label-condition">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -806,9 +885,9 @@ $years = $repository->getDistinctYears();
                             <polyline points="17 8 12 3 7 8" />
                             <line x1="12" y1="3" x2="12" y2="15" />
                         </svg>
-                        <span id="upload-text-condition"><?= $isEdit && !empty($editMosaic['image_path_current_condition']) ? 'Neues Zustand-Bild auswählen' : 'Zustand-Bild auswählen' ?></span>
+                        <span id="upload-text-condition">Zustandsbilder auswählen</span>
                     </label>
-                    <input type="file" id="image_condition" name="image_condition" accept="image/*">
+                    <input type="file" id="image_condition" name="image_condition[]" accept="image/*" multiple>
                 </div>
 
                 <div class="form-group">
@@ -965,11 +1044,11 @@ $years = $repository->getDistinctYears();
         if (fileInputCond) {
             fileInputCond.addEventListener('change', function (e) {
                 if (e.target.files && e.target.files.length > 0) {
-                    uploadTextCond.textContent = e.target.files[0].name;
+                    uploadTextCond.textContent = e.target.files.length === 1 ? e.target.files[0].name : (e.target.files.length + ' Dateien ausgewählt');
                     uploadLabelCond.style.borderColor = 'var(--accent-color)';
                     uploadLabelCond.style.color = 'var(--text-primary)';
                 } else {
-                    uploadTextCond.textContent = 'Zustand-Bild auswählen';
+                    uploadTextCond.textContent = 'Zustandsbilder auswählen';
                     uploadLabelCond.style.borderColor = 'var(--card-border)';
                     uploadLabelCond.style.color = 'var(--text-secondary)';
                 }

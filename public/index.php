@@ -481,6 +481,36 @@ $years = $repository->getDistinctYears();
             object-fit: cover;
         }
 
+        .thumbs {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.75rem;
+        }
+
+        .thumbs button {
+            padding: 0;
+            border: 1px solid var(--card-border);
+            background: #161b26;
+            border-radius: 10px;
+            cursor: pointer;
+            overflow: hidden;
+            width: 64px;
+            height: 48px;
+        }
+
+        .thumbs button[aria-current="true"] {
+            border-color: rgba(59, 130, 246, 0.6);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+        }
+
+        .thumbs img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
         .modal-description {
             font-size: 1.05rem;
             color: var(--text-primary);
@@ -647,7 +677,7 @@ $years = $repository->getDistinctYears();
                               data-release="<?= htmlspecialchars($releaseLabel) ?>"
                               data-description="<?= htmlspecialchars($mosaik['description'] ?? '') ?>"
                               data-image="<?= htmlspecialchars($mosaik['image_path'] ?? '') ?>"
-                              data-condition-image="<?= htmlspecialchars($mosaik['image_path_current_condition'] ?? '') ?>">
+                              data-condition-images="<?= htmlspecialchars($mosaik['image_path_current_condition'] ?? '') ?>">
                         <div class="card-image-wrapper">
                             <?php if (!empty($mosaik['image_path'])): ?>
                                 <img src="<?= htmlspecialchars($mosaik['image_path']) ?>" alt="Mosaik Cover" class="card-image"
@@ -697,6 +727,7 @@ $years = $repository->getDistinctYears();
                         <div class="modal-img-wrapper">
                             <img src="" alt="Zustand" id="m-cond-img">
                         </div>
+                        <div class="thumbs" id="m-cond-thumbs" aria-label="Zustandsbilder"></div>
                     </div>
                 </div>
 
@@ -724,7 +755,7 @@ $years = $repository->getDistinctYears();
                     const title = card.getAttribute('data-title');
                     const description = card.getAttribute('data-description') || 'Keine Beschreibung vorhanden.';
                     const image = card.getAttribute('data-image');
-                    const condImage = card.getAttribute('data-condition-image');
+                    const condImagesRaw = card.getAttribute('data-condition-images') || '';
 
                     const category = card.getAttribute('data-category') || '';
                     const type = card.getAttribute('data-type') || '';
@@ -772,12 +803,48 @@ $years = $repository->getDistinctYears();
 
                     const condSection = document.getElementById('m-cond-section');
                     const condImg = document.getElementById('m-cond-img');
-                    if (condImage) {
-                        condImg.src = condImage;
+                    const condThumbs = document.getElementById('m-cond-thumbs');
+
+                    const parseCondImages = (raw) => {
+                        const s = (raw || '').trim();
+                        if (!s) return [];
+                        if (s.startsWith('[')) {
+                            try {
+                                const arr = JSON.parse(s);
+                                return Array.isArray(arr) ? arr.filter(Boolean).map(String) : [];
+                            } catch (e) {
+                                return [];
+                            }
+                        }
+                        return [s];
+                    };
+
+                    const condImages = parseCondImages(condImagesRaw);
+                    if (condImages.length > 0) {
+                        condImg.src = condImages[0];
                         condSection.style.display = 'block';
+
+                        condThumbs.innerHTML = '';
+                        condImages.forEach((src, idx) => {
+                            const btn = document.createElement('button');
+                            btn.type = 'button';
+                            btn.setAttribute('aria-current', idx === 0 ? 'true' : 'false');
+                            const img = document.createElement('img');
+                            img.loading = 'lazy';
+                            img.alt = 'Zustandsbild ' + (idx + 1);
+                            img.src = src;
+                            btn.appendChild(img);
+                            btn.addEventListener('click', () => {
+                                condImg.src = src;
+                                [...condThumbs.querySelectorAll('button')].forEach(b => b.setAttribute('aria-current', 'false'));
+                                btn.setAttribute('aria-current', 'true');
+                            });
+                            condThumbs.appendChild(btn);
+                        });
                     } else {
                         condImg.src = '';
                         condSection.style.display = 'none';
+                        condThumbs.innerHTML = '';
                     }
 
                     modal.classList.add('active');

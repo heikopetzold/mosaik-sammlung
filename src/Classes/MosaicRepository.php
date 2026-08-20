@@ -29,13 +29,45 @@ class MosaicRepository implements MosaicRepositoryInterface
             $where[] = 'release_year = :year';
             $params['year'] = (int) $filters['year'];
         }
+        if (!empty($filters['release_year'])) {
+            $where[] = 'release_year = :release_year';
+            $params['release_year'] = (int) $filters['release_year'];
+        }
         if (!empty($filters['category'])) {
             $where[] = 'category = :category';
             $params['category'] = $filters['category'];
         }
+        if (!empty($filters['type'])) {
+            $where[] = 'type = :type';
+            $params['type'] = $filters['type'];
+        }
+        if (!empty($filters['title'])) {
+            $where[] = 'title = :title';
+            $params['title'] = $filters['title'];
+        }
+        if (isset($filters['issue_number']) && $filters['issue_number'] !== '' && $filters['issue_number'] !== null) {
+            $where[] = 'issue_number = :issue_number';
+            $params['issue_number'] = (int) $filters['issue_number'];
+        }
+        if (!empty($filters['main_serie'])) {
+            $where[] = 'main_serie = :main_serie';
+            $params['main_serie'] = $filters['main_serie'];
+        }
+        if (!empty($filters['serie'])) {
+            $where[] = 'serie = :serie';
+            $params['serie'] = $filters['serie'];
+        }
+        if (!empty($filters['availability'])) {
+            $where[] = 'availability = :availability';
+            $params['availability'] = $filters['availability'];
+        }
         if (!empty($filters['condition'])) {
             $where[] = 'item_condition = :condition';
             $params['condition'] = $filters['condition'];
+        }
+        if (!empty($filters['item_condition'])) {
+            $where[] = 'item_condition = :item_condition';
+            $params['item_condition'] = $filters['item_condition'];
         }
 
         $sql = "SELECT * FROM mosaics";
@@ -56,6 +88,17 @@ class MosaicRepository implements MosaicRepositoryInterface
     public function find(int $id): ?array
     {
         $stmt = DB::query("SELECT * FROM mosaics WHERE id = :id", ['id' => $id]);
+        $result = $stmt->fetch();
+        return $result ?: null;
+    }
+
+    public function findByUuid(string $uuid): ?array
+    {
+        $uuid = trim($uuid);
+        if ($uuid === '') {
+            return null;
+        }
+        $stmt = DB::query("SELECT * FROM mosaics WHERE uuid = :uuid", ['uuid' => $uuid]);
         $result = $stmt->fetch();
         return $result ?: null;
     }
@@ -81,7 +124,7 @@ class MosaicRepository implements MosaicRepositoryInterface
             'release_month' => (int) $data['release_month'],
             'description' => $data['description'] ?? null,
             'image_path' => $data['image_path'] ?? null,
-            'image_path_current_condition' => $data['image_path_current_condition'] ?? null
+            'image_path_current_condition' => $this->normalizeConditionImagePaths($data['image_path_current_condition'] ?? null)
         ]);
 
         return $stmt ? true : false;
@@ -121,7 +164,7 @@ class MosaicRepository implements MosaicRepositoryInterface
             'release_month' => (int) $data['release_month'],
             'description' => $data['description'] ?? null,
             'image_path' => $data['image_path'] ?? null,
-            'image_path_current_condition' => $data['image_path_current_condition'] ?? null,
+            'image_path_current_condition' => $this->normalizeConditionImagePaths($data['image_path_current_condition'] ?? null),
             'id' => $id
         ]);
 
@@ -137,5 +180,20 @@ class MosaicRepository implements MosaicRepositoryInterface
     private function normalizeIssueNumber($value): ?int
     {
         return ($value !== null && $value !== '') ? (int) $value : null;
+    }
+
+    private function normalizeConditionImagePaths($value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        // Accept either a single path string or an array of path strings.
+        if (is_array($value)) {
+            $paths = array_values(array_filter(array_map('strval', $value), static fn($p) => $p !== ''));
+            return $paths ? json_encode($paths, JSON_UNESCAPED_SLASHES) : null;
+        }
+
+        return (string) $value;
     }
 }

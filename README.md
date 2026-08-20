@@ -33,12 +33,24 @@ Das Formular soll folgende Felder enthalten:
 -[release_month]                [int]           [Erscheinungsmonat]
 -[description]                  [text]          [Beschreibung]
 -[image_path]                   [varchar(255)]  [Bildupload]
--[image_path_current_condition] [varchar(255)]  [Bildupload aktueller Zustand]
+-[image_path_current_condition] [text]          [Bildupload aktueller Zustand (mehrere Bilder als JSON-Array)]
 -[created_at]                   [timestamp]     [Created Date]
 -[updated_at]                   [timestamp]     [Updated Date]
 Im ersten Klammerpaar ist der Name des Datenbankfeldes. Im zweiten, der angenommene Datentyp. Im dritten stehen die Titel zum Anzeigen. Dahinter kommen evtl. noch die default Auswahl.
 Die uuid soll automatisch erstellt werden.
 Relevante Felder sollen auch über einen Index verfügen.
+image_path_current_condition mehrere bilder speichern können.
+Ich möchte auch eine JSON ausgabe haben
+ -einen Datensatz, wenn mittels uuid angefragt wird
+ -mehrere datensätze, wenn mittels type,category,title, issue_number, main_serie, serie, availability, item_condition, release_year angefragt wird
+
+### JSON API
+
+- Ein Datensatz: `GET /api.php?uuid=<uuid>`
+- Mehrere Datensaetze (Filter Pflicht): `GET /api.php?category=Abrafaxe&release_year=1990`
+
+Unterstuetzte Filter-Parameter: `type`, `category`, `title`, `issue_number`, `main_serie`, `serie`, `availability`, `item_condition`, `release_year`
+
 Die Admincredentials sollen sein:
 Benutzer: admin
 Pwd: admin123
