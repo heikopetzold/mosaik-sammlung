@@ -1,7 +1,6 @@
 Prompt
 Mache mir einen Plan für eine Webseite. Diese soll meine Mosaiksammlung abbilden.
 
-Vergleiche mit dem aktuellen projekt und zeige mir die benötigten änderungen
 
 Environment:
 Ich möchte mit lando starten, bauen und stoppen können. 
